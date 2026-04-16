@@ -1,6 +1,10 @@
 import os
+from dotenv import load_dotenv
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyCfIXUi5ZHKQcZHhoroz5M102lWXGW-Xag")
+# Load environment variables
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL_NAME = "gemini-3.1-flash-lite-preview"
 
 PROMPT_EXTRACT_ENTITIES = """
