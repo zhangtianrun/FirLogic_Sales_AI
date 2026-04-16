@@ -45,7 +45,7 @@ def process_and_export(input_path, output_path):
         print(f"Error reading Excel file: {e}")
         return
         
-    for sheet_name in ["重点关注_软木及混合", "重点关注_硬木"]:
+    for sheet_name in ["重点关注_软木及混合"]:
         if sheet_name in xl.sheet_names:
             df = xl.parse(sheet_name)
             # convert NaNs to empty strings
@@ -72,10 +72,8 @@ def process_and_export(input_path, output_path):
     print("\nGenerating final formatting Excel...")
     
     target_softwood = [r for r in target_results if r.get("__tab__") == "重点关注_软木及混合"]
-    target_hardwood = [r for r in target_results if r.get("__tab__") == "重点关注_硬木"]
     
     df_softwood = pd.DataFrame(flatten_results(target_softwood)) if target_softwood else pd.DataFrame()
-    df_hardwood = pd.DataFrame(flatten_results(target_hardwood)) if target_hardwood else pd.DataFrame()
     
     # Updated Column Order (Chinese)
     cols_target = [
@@ -85,16 +83,12 @@ def process_and_export(input_path, output_path):
     ]
     
     if not df_softwood.empty: df_softwood = df_softwood.reindex(columns=cols_target)
-    if not df_hardwood.empty: df_hardwood = df_hardwood.reindex(columns=cols_target)
     
     from openpyxl.styles import Font, Alignment
     
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-        if not df_softwood.empty or not df_hardwood.empty:
-            if not df_softwood.empty:
-                df_softwood.to_excel(writer, sheet_name="重点关注_软木及混合", index=False)
-            if not df_hardwood.empty:
-                df_hardwood.to_excel(writer, sheet_name="重点关注_硬木", index=False)
+        if not df_softwood.empty:
+            df_softwood.to_excel(writer, sheet_name="重点关注_软木及混合", index=False)
             
             workbook = writer.book
             bold_font = Font(bold=True)
