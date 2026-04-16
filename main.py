@@ -36,7 +36,12 @@ def write_to_excel(results, output_path):
         wood_raw = item.pop("__wood_raw__", "").lower()
         
         if tab == "Target":
-            if "硬木" in wood_raw or "hardwood" in wood_raw:
+            is_mixed = "混合" in wood_raw or "mixed" in wood_raw
+            is_hardwood = "硬木" in wood_raw or "hardwood" in wood_raw
+            
+            if is_mixed:
+                target_softwood.append(item)
+            elif is_hardwood:
                 target_hardwood.append(item)
             else:
                 target_softwood.append(item)
