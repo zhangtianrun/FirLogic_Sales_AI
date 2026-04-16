@@ -102,7 +102,11 @@ def main():
     results = []
     missing_info = []
 
-    print("[*] 开始执行 Clearout API 极速邮箱查询...")
+    import time
+    print("[*] 开始执行 Clearout API 极速邮箱查询 (启动 14 RPM 极速限流保护)...")
+
+    request_count = 0
+    batch_start_time = 0.0
 
     for idx, row in df.iterrows():
         company = str(row.get('公司名称', '')).strip()
@@ -131,12 +135,30 @@ def main():
             missing_info.append(base_info)
             continue
 
-        print(f"[>] 查找: {name} @ {domain} ... ", end="", flush=True)
+        # == 批次限流计时的起点 ==
+        if request_count == 0:
+            batch_start_time = time.time()
+
+        print(f"[>] 第 {request_count+1}/14 次请求 - 查找: {name} @ {domain} ... ", end="", flush=True)
         email = find_email_api(name, domain)
         print(f"[{email}]")
         
         base_info['邮件联系方式'] = email
         results.append(base_info)
+        
+        # == 限流检测与阻断逻辑 ==
+        request_count += 1
+        if request_count == 14:
+            elapsed = time.time() - batch_start_time
+            if elapsed < 60.0:
+                # 满 14 次且耗时不足一分钟，等到一分钟并额外缓冲 2 秒
+                sleep_time = 60.0 - elapsed + 2.0
+                print(f"\n[!] 触发限流保护: 已用尽 14 次并发额度 (耗时 {elapsed:.1f}s)。")
+                print(f"[!] 强制冷却洗牌... 等待 {sleep_time:.1f} 秒后重置计时池。")
+                time.sleep(sleep_time)
+                print("[*] 冷却完毕，重新进入下一个 14 RPM 周期。\n")
+            # 无论是否罚站，满 14 次后计时器与计数器清零
+            request_count = 0
 
     if not results and not missing_info:
         print("\n[-] 警告：名单完全为空，未生成任何表格。")
