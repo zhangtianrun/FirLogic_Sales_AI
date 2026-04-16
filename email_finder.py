@@ -26,7 +26,8 @@ def clean_domain(url):
             url = url[len(prefix):]
     return url.split('/')[0].strip()
 
-def find_email_api(name, domain):
+def find_email_api(name, domain, retries=2):
+    import time
     if not CLEAROUT_API_KEY or CLEAROUT_API_KEY == "your_clearout_api_key_here":
         return "请在.env填写CLEAROUT_API_KEY"
 
@@ -48,7 +49,6 @@ def find_email_api(name, domain):
             data = response.json()
             if data.get("status") == "success" and data.get("data", {}).get("emails"):
                 first_match = data["data"]["emails"][0]
-                # API returns a dict, e.g. {'email_address': 'scottlewis@claymark.com', ...}
                 if isinstance(first_match, dict) and "email_address" in first_match:
                     return first_match["email_address"]
                 return str(first_match)
@@ -59,7 +59,12 @@ def find_email_api(name, domain):
         elif response.status_code == 401:
             return "API Key 无效"
         elif response.status_code == 429:
-            return "API请求过于频繁"
+            if retries > 0:
+                print("\n    [!] 触发官方硬性限流 (429)，强制冷却 60 秒后重试此条目...")
+                time.sleep(60)
+                return find_email_api(name, domain, retries=retries-1)
+            else:
+                return "API请求过于频繁(重试失败)"
         else:
             return f"API查询失败 ({response.status_code})"
     except Exception as e:
