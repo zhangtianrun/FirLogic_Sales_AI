@@ -33,12 +33,8 @@ def process_leads(raw_text: str):
         
         if decision == "Retain":
             print(f"    [+] Target Verified by AI Search!")
-            print(f"    [+] Running Staff Penetration Pipeline (Feature 2)...")
-            staff = ai_processor.run_staff_test(company, config.MODEL_DETECTIVE)
-            info["staff_list"] = staff
         else:
             print(f"    [-] Excluded by AI Search.")
-            info["staff_list"] = []
             
         results.append(info)
             
