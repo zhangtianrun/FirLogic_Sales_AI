@@ -1,0 +1,8 @@
+google-genai
+pandas
+openpyxl
+duckduckgo-search
+beautifulsoup4
+requests
+pydantic
+python-docx
