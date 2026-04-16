@@ -79,7 +79,7 @@ def run_grounded_research(company_name: str) -> dict:
     def _search_pass():
         return client.models.generate_content(
             model=config.MODEL_NAME,
-            contents=[f"Exhaustively research {company_name} physical manufacturing facilities, sawmill operations, and production plants. Determine if they operate primary wood processing equipment (sawing, debarking, kiln drying) even if their primary brand is packaging, furniture, or construction. Look for internal supply chain sawmills or subsidiaries under different names."],
+            contents=[f"Research {company_name} wood products, sawmills, and factory facilities. We need the official website URL and estimated employee count (look for LinkedIn/business directory info if needed). Also check for log scanning technology or primary processing assets."],
             config=types.GenerateContentConfig(
                 system_instruction=config.PROMPT_DEEP_RESEARCH,
                 tools=[types.Tool(google_search=types.GoogleSearch())],

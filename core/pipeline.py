@@ -19,11 +19,11 @@ def process_leads(raw_text: str):
         info = {
             "公司名称": company,
             "网站": intel.get("official_website", "未找到"),
-            "木材类别": intel.get("wood_species", "未知"),
+            "木材类别": intel.get("wood_category", "未知"), # Structured Category
             "人员数量": intel.get("employee_count", "未知"),
             "厂数量": intel.get("factory_count", "未知"),
             "业务分类": "重点关注" if decision == "Retain" else "非目标",
-            "具体品种": intel.get("wood_species", "未知"), # Keep detailed if needed
+            "具体品种": intel.get("wood_species", "未知"),   # Multiple list
             "自动化程度": intel.get("automation_details", "未知"),
             "竞品设备": intel.get("log_scanner_intel", "未知"),
             "理由": intel.get("rationale", "未知"),
