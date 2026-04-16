@@ -36,14 +36,15 @@ def write_to_excel(results, output_path):
         wood_raw = item.pop("__wood_raw__", "").lower()
         
         if tab == "Target":
-            is_mixed = "混合" in wood_raw or "mixed" in wood_raw
-            is_hardwood = "硬木" in wood_raw or "hardwood" in wood_raw
+            # wood_raw now contains the structured category ("软木", "硬木", "混合")
+            category = wood_raw 
             
-            if is_mixed:
+            if category == "混合" or category == "软木":
                 target_softwood.append(item)
-            elif is_hardwood:
+            elif category == "硬木":
                 target_hardwood.append(item)
             else:
+                # Fallback to softwood if category is missing or ambiguous
                 target_softwood.append(item)
         else:
             excluded.append(item)

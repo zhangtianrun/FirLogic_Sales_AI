@@ -18,6 +18,7 @@ class IntelligenceOutput(BaseModel):
     official_website: str = Field(description="The official website of the company.")
     decision: str = Field(description="Strictly 'Retain' or 'Exclude'.")
     wood_species: str = Field(description="木材类别与树种 (例如: **软木**, 松木, 杉木).")
+    wood_category: str = Field(description="核心分类：严格输出 '软木', '硬木' 或 '混合'.")
     employee_count: str = Field(description="人员数量或规模描述 (中文).")
     factory_count: str = Field(description="工厂数量描述 (中文).")
     log_scanner_intel: str = Field(description="3D扫描或优化技术的证据及品牌 (中文).")

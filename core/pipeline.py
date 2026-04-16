@@ -28,7 +28,7 @@ def process_leads(raw_text: str):
             "竞品设备": intel.get("log_scanner_intel", "未知"),
             "理由": intel.get("rationale", "未知"),
             "__tab__": "Target" if decision == "Retain" else "Excluded",
-            "__wood_raw__": intel.get("wood_species", "") # Hidden helper for sheet splitting
+            "__wood_raw__": intel.get("wood_category", "") # Using structured category for splitting
         }
         
         if decision == "Retain":
