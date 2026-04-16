@@ -121,6 +121,10 @@ def main():
         
     results = process_leads(raw_text)
     
+    if not results:
+        print("\n[!] 严重警告: AI 没有返回任何可用的公司数据，流程终止。(如果重复出现，请检查输入文本或 API 额度状态)")
+        return
+
     print(f"\nWriting {len(results)} records to Excel...")
     write_to_excel(results, args.output)
 

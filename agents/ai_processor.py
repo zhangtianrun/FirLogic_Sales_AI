@@ -45,7 +45,8 @@ def retry_ai_call(func, *args, **kwargs):
             err_str = str(e).upper()
             if ("503" in err_str or "429" in err_str or "UNAVAILABLE" in err_str or "QUOTA" in err_str) and i < max_retries - 1:
                 delay = base_delay * (i + 1)
-                print(f"    [!] AI Busy/Limit reached. Retrying in {delay}s... (Attempt {i+1}/{max_retries})")
+                print(f"    [!] AI Busy/Limit reached. Exception: {e}")
+                print(f"    [!] Retrying in {delay}s... (Attempt {i+1}/{max_retries})")
                 import time
                 time.sleep(delay)
                 continue
