@@ -24,6 +24,16 @@ class IntelligenceOutput(BaseModel):
     automation_details: str = Field(description="自动化流水线、干燥窑等详情 (中文).")
     rationale: str = Field(description="判定理由 (中文).")
 
+class StaffMember(BaseModel):
+    name: str = Field(description="人员姓名.")
+    title: str = Field(description="人员职务.")
+    role_description: str = Field(description="职责详细描述 (中文).")
+    relevance_analysis: str = Field(description="销售关联度分析：为什么此人对原木扫描仪销售很重要 (中文).")
+    source_link: str = Field(description="获取此人情报的原始来源链接.")
+
+class StaffIntelligence(BaseModel):
+    members: list[StaffMember]
+
 def retry_ai_call(func, *args, **kwargs):
     max_retries = 3
     base_delay = 15
@@ -108,3 +118,41 @@ def run_grounded_research(company_name: str) -> dict:
             "automation_details": "错误",
             "rationale": str(e)
         }
+
+def run_staff_test(company_name: str, model_name: str) -> dict:
+    print(f"    [AI-Search] Performing Staff Penetration Research for: {company_name} using {model_name}")
+    
+    def _search_pass():
+        return client.models.generate_content(
+            model=model_name,
+            contents=[f"Exhaustively search for the core management team and managers (Production, Log, Finance) of the company: {company_name}. I need names, titles, and links."],
+            config=types.GenerateContentConfig(
+                system_instruction=config.PROMPT_STAFF_RESEARCH,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.4
+            ),
+        )
+
+    def _format_pass(research_text):
+        return client.models.generate_content(
+            model=model_name,
+            contents=[research_text],
+            config=types.GenerateContentConfig(
+                system_instruction=config.PROMPT_STAFF_FORMATTER,
+                response_mime_type="application/json",
+                response_schema=StaffIntelligence,
+                temperature=0.1
+            ),
+        )
+
+    try:
+        # Pass 1: Grounded Search
+        search_res = retry_ai_call(_search_pass)
+        research_text = search_res.text
+        
+        # Pass 2: JSON Formatting
+        json_res = retry_ai_call(_format_pass, research_text)
+        return json.loads(json_res.text).get("members", [])
+    except Exception as e:
+        print(f"    [!] Error in staff research for {company_name} with {model_name}: {e}")
+        return []
