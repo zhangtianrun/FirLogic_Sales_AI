@@ -102,7 +102,11 @@ def run_grounded_research(company_name: str) -> dict:
     try:
         # Pass 1: Grounded Search
         search_res = retry_ai_call(_search_pass)
-        research_text = search_res.text
+        research_text = search_res.text if search_res.text else "No research found."
+        
+        # Clean text to avoid SDK validation errors for noisy/long input
+        # We take the first 15000 characters which is plenty for a summary but safe for the schema
+        research_text = research_text[:15000] 
         
         # Pass 2: JSON Formatting
         json_res = retry_ai_call(_format_pass, research_text)
