@@ -47,7 +47,11 @@ def find_email_api(name, domain):
         if response.status_code == 200:
             data = response.json()
             if data.get("status") == "success" and data.get("data", {}).get("emails"):
-                return data["data"]["emails"][0]
+                first_match = data["data"]["emails"][0]
+                # API returns a dict, e.g. {'email_address': 'scottlewis@claymark.com', ...}
+                if isinstance(first_match, dict) and "email_address" in first_match:
+                    return first_match["email_address"]
+                return str(first_match)
             else:
                 return "未查到公开邮箱"
         elif response.status_code == 402:
@@ -89,8 +93,8 @@ def main():
         df = pd.read_excel(input_file, sheet_name="重点关注_软木及混合")
         if '公司名称' in df.columns:
             df['公司名称'] = df['公司名称'].ffill()
-        if '官方网站' in df.columns:
-            df['官方网站'] = df['官方网站'].ffill()
+        if '网站' in df.columns:
+            df['网站'] = df['网站'].ffill()
     except Exception as e:
         print(f"读取Excel失败: {e}")
         return
@@ -104,7 +108,7 @@ def main():
         company = str(row.get('公司名称', '')).strip()
         name = str(row.get('高管姓名', '')).strip()
         title = str(row.get('高管职务', '')).strip()
-        website = str(row.get('官方网站', '')).strip()
+        website = str(row.get('网站', '')).strip()
         
         domain = clean_domain(website)
         
