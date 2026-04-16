@@ -22,8 +22,37 @@ def read_input(file_path):
     else:
         raise ValueError("Unsupported valid format. Use txt, docx, csv, or xlsx.")
 
+def flatten_results(results_list):
+    flat_list = []
+    base_keys = ["公司名称", "网站", "木材类别", "人员数量", "厂数量", "业务分类", "具体品种", "自动化程度", "竞品设备", "理由"]
+    for item in results_list:
+        staff_list = item.pop("staff_list", [])
+        if not staff_list:
+            flat_item = {k: item.get(k, "") for k in base_keys}
+            flat_item["高管姓名"] = "未找到"
+            flat_item["高管职务"] = "未找到"
+            flat_item["职责描述"] = "未找到"
+            flat_item["销售分析"] = "未找到"
+            flat_item["情报来源链接"] = "未找到"
+            flat_list.append(flat_item)
+        else:
+            for i, staff in enumerate(staff_list):
+                flat_item = {}
+                for k in base_keys:
+                    if i == 0:
+                        flat_item[k] = item.get(k, "")
+                    else:
+                        flat_item[k] = "" # Leave empty for merging
+                flat_item["高管姓名"] = staff.get("name", "")
+                flat_item["高管职务"] = staff.get("title", "")
+                flat_item["职责描述"] = staff.get("role_description", "")
+                flat_item["销售分析"] = staff.get("relevance_analysis", "")
+                flat_item["情报来源链接"] = staff.get("source_link", "")
+                flat_list.append(flat_item)
+    return flat_list
+
 def write_to_excel(results, output_path):
-    from openpyxl.styles import Font
+    from openpyxl.styles import Font, Alignment
     
     target_softwood = []
     target_hardwood = []
@@ -48,15 +77,15 @@ def write_to_excel(results, output_path):
         else:
             excluded.append(item)
             
-    df_softwood = pd.DataFrame(target_softwood)
-    df_hardwood = pd.DataFrame(target_hardwood)
-    df_excluded = pd.DataFrame(excluded)
+    df_softwood = pd.DataFrame(flatten_results(target_softwood)) if target_softwood else pd.DataFrame()
+    df_hardwood = pd.DataFrame(flatten_results(target_hardwood)) if target_hardwood else pd.DataFrame()
+    df_excluded = pd.DataFrame(excluded) if excluded else pd.DataFrame()
     
     # Updated Column Order (Chinese)
     cols_target = [
         "公司名称", "网站", "木材类别", "人员数量", "厂数量", 
-        "业务分类", "具体品种", "自动化程度", 
-        "竞品设备", "理由"
+        "高管姓名", "高管职务", "职责描述", "销售分析", "情报来源链接",
+        "业务分类", "具体品种", "自动化程度", "竞品设备", "理由"
     ]
     
     cols_excluded = ["公司名称", "业务分类", "理由", "网站"]
@@ -80,18 +109,52 @@ def write_to_excel(results, output_path):
             for cell in worksheet[1]:
                 cell.font = bold_font
             
-            # 2. Adjust column widths and bold "木材类别" column if in sheet
-            header_map = {cell.value: cell.column_letter for cell in worksheet[1]}
+            # 2. Adjust column widths and text wraps
+            header_map = {cell.value: cell.column_letter for cell in worksheet[1] if cell.value}
             
             # Default widths for all columns
             for col in worksheet.columns:
-                col_letter = col[0].column_letter
-                worksheet.column_dimensions[col_letter].width = 25
+                if col[0].value:
+                    col_letter = col[0].column_letter
+                    worksheet.column_dimensions[col_letter].width = 25
             
             # Specific wider columns
-            for hdr in ["理由", "自动化程度", "竞品设备", "具体品种"]:
+            for hdr in ["理由", "自动化程度", "竞品设备", "具体品种", "职责描述", "销售分析"]:
                 if hdr in header_map:
                     worksheet.column_dimensions[header_map[hdr]].width = 45
+            for hdr in ["情报来源链接"]:
+                if hdr in header_map:
+                    worksheet.column_dimensions[header_map[hdr]].width = 15
+
+            # Apply Merge Cells for base columns if they are empty
+            merge_cols = ["公司名称", "网站", "木材类别", "人员数量", "厂数量", "业务分类", "具体品种", "自动化程度", "竞品设备", "理由"]
+            for col_name in merge_cols:
+                if col_name in header_map:
+                    col_letter = header_map[col_name]
+                    col_idx = worksheet[col_letter + "1"].column
+                    
+                    start_row = 2
+                    while start_row <= worksheet.max_row:
+                        cell_val = worksheet.cell(row=start_row, column=col_idx).value
+                        if cell_val != "" and cell_val is not None:
+                            end_row = start_row
+                            while end_row + 1 <= worksheet.max_row and (worksheet.cell(row=end_row + 1, column=col_idx).value == "" or worksheet.cell(row=end_row + 1, column=col_idx).value is None):
+                                end_row += 1
+                            if end_row > start_row:
+                                worksheet.merge_cells(f"{col_letter}{start_row}:{col_letter}{end_row}")
+                                worksheet.cell(row=start_row, column=col_idx).alignment = Alignment(vertical='center', wrap_text=True)
+                            else:
+                                worksheet.cell(row=start_row, column=col_idx).alignment = Alignment(vertical='top', wrap_text=True)
+                            start_row = end_row + 1
+                        else:
+                            start_row += 1
+                            
+            # Enable word wrap for these columns explicitly
+            for col_name in ["职责描述", "销售分析", "高管姓名", "高管职务"]:
+                if col_name in header_map:
+                    col_letter = header_map[col_name]
+                    for row in range(2, worksheet.max_row + 1):
+                        worksheet[f"{col_letter}{row}"].alignment = Alignment(vertical='top', wrap_text=True)
             
             # 3. Bold the wood category column content
             if "木材类别" in header_map:
