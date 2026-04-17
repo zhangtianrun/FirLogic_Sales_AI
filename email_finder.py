@@ -135,19 +135,28 @@ def main():
             while elapsed < timeout:
                 time.sleep(0.5)
                 elapsed += 0.5
+                
+                # 获取页面所有纯可视文本（无视任何 HTML 标签的干扰！）
+                body_ele = page.ele('t:body', timeout=0)
+                visible_text = body_ele.text if body_ele else ""
                 html_text = str(page.html)
+                
+                lower_visible = visible_text.lower()
                 lower_html = html_text.lower()
                 
                 # 方案 1：匹配真实的邮箱输出（确保后缀正是我们在查的这家公司）
                 email_regex = r'[a-zA-Z0-9_.+-]+@' + re.escape(domain)
-                match = re.search(email_regex, html_text, re.IGNORECASE)
+                
+                # 必须对【纯文本】而不是源码进行正则搜索！防范网页前端把 @ 字母包在 <span class="highlight"> 里这种鬼把戏
+                match = re.search(email_regex, visible_text, re.IGNORECASE)
                 if match:
                     found_email = match.group(0).lower()
                     cloudflare_stuck = False
                     break
                     
                 # 方案 2：捕捉明确的“报错文本”或“没找到文本”
-                if "no result" in lower_html or "not found" in lower_html or "couldn't find" in lower_html or "no format found" in lower_html or "unverified email" in lower_html:
+                # 在纯文本和源码双端比对，防止漏掉元素
+                if "no result" in lower_visible or "not found" in lower_visible or "couldn't find" in lower_visible or "no format found" in lower_visible or "unverified email" in lower_visible:
                     found_email = "No results found"
                     cloudflare_stuck = False
                     break
