@@ -1,15 +1,13 @@
 import os
 import argparse
+import time
+import random
+import re
 import pandas as pd
-import requests
-from dotenv import load_dotenv
-
-# 加载 .env 环境变量
-load_dotenv()
-CLEAROUT_API_KEY = os.getenv("CLEAROUT_API_KEY")
+from DrissionPage import ChromiumPage
 
 def get_args():
-    parser = argparse.ArgumentParser(description="FirLogic Email Finder (Step 3)")
+    parser = argparse.ArgumentParser(description="FirLogic Email Finder - DrissionPage Geek Mode")
     parser.add_argument('--input', type=str, default="FirLogic_Sales_Intel_Report_Step2.xlsx", help="Step 2 的输入文件路径")
     parser.add_argument('--output', type=str, default="~/Downloads/FirLogic_Sales_Intel_Report_Step3.xlsx", help="生成 Step 3 的输出文件路径")
     return parser.parse_args()
@@ -26,50 +24,6 @@ def clean_domain(url):
             url = url[len(prefix):]
     return url.split('/')[0].strip()
 
-def find_email_api(name, domain, retries=2):
-    import time
-    if not CLEAROUT_API_KEY or CLEAROUT_API_KEY == "your_clearout_api_key_here":
-        return "请在.env填写CLEAROUT_API_KEY"
-
-    url = "https://api.clearout.io/v2/email_finder/instant"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {CLEAROUT_API_KEY}"
-    }
-    payload = {
-        "name": name,
-        "domain": domain,
-        "timeout": 30000,
-        "queue": False
-    }
-
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=35)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("status") == "success" and data.get("data", {}).get("emails"):
-                first_match = data["data"]["emails"][0]
-                if isinstance(first_match, dict) and "email_address" in first_match:
-                    return first_match["email_address"]
-                return str(first_match)
-            else:
-                return "未查到公开邮箱"
-        elif response.status_code == 402:
-            return "API额度不足"
-        elif response.status_code == 401:
-            return "API Key 无效"
-        elif response.status_code == 429:
-            if retries > 0:
-                print("\n    [!] 触发官方硬性限流 (429)，强制冷却 60 秒后重试此条目...")
-                time.sleep(60)
-                return find_email_api(name, domain, retries=retries-1)
-            else:
-                return "API请求过于频繁(重试失败)"
-        else:
-            return f"API查询失败 ({response.status_code})"
-    except Exception as e:
-        return f"查询异常: {str(e)}"
-
 def format_excel(file_path):
     """把生成的格子调大一点"""
     import openpyxl
@@ -77,7 +31,6 @@ def format_excel(file_path):
     
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
-        # 设置列宽
         ws.column_dimensions['A'].width = 30  # 公司名称
         ws.column_dimensions['B'].width = 25  # 高管姓名
         ws.column_dimensions['C'].width = 35  # 高管职务
@@ -107,12 +60,20 @@ def main():
     results = []
     missing_info = []
 
-    import time
-    print("[*] 开始执行 Clearout API 极速邮箱查询 (启动 14 RPM 极速限流保护)...")
+    print("\n---------------------------------------------------------")
+    print("[*] 启动极客实习生模式 (DrissionPage 前端伪装自动爬虫)")
+    print("---------------------------------------------------------")
+    print("[*] 正在拉起本地 Chrome 浏览器...")
+    try:
+        page = ChromiumPage()
+    except Exception as e:
+        print(f"\n\033[91m[!] 启动浏览器失败！可能没有找到 Chrome 浏览器。报错: {e}\033[0m")
+        return
 
-    request_count = 0
-    batch_start_time = 0.0
-
+    print("[*] 导航至 Mailmeteor 首页...")
+    page.get('https://mailmeteor.com/tools/email-finder')
+    time.sleep(3) # 给它留够时间加载初步的反爬 JS
+    
     for idx, row in df.iterrows():
         company = str(row.get('公司名称', '')).strip()
         name = str(row.get('高管姓名', '')).strip()
@@ -140,36 +101,99 @@ def main():
             missing_info.append(base_info)
             continue
 
-        # == 批次限流计时的起点 ==
-        if request_count == 0:
-            batch_start_time = time.time()
+        print(f"[>] 模拟查找: {name} @ {domain} ... ")
+        
+        try:
+            # 找到输入框
+            name_input = page.ele('@id=fullName', timeout=5)
+            domain_input = page.ele('@id=domain', timeout=2)
+            btn = page.ele('@aria-label=Find email address', timeout=2)
+            
+            if not name_input or not domain_input or not btn:
+                print("\033[91m[!] 页面元素丢失，可能网页结构已更改，或者被防机器人的 5 秒盾完全挡住。\033[0m")
+                base_info['邮件联系方式'] = '防爬盾致页面加载失败'
+                results.append(base_info)
+                continue
+            
+            # 填表动作（极速，不要傻等）
+            name_input.clear()
+            name_input.input(name)
+            time.sleep(random.uniform(0.1, 0.4))
+            
+            domain_input.clear()
+            domain_input.input(domain)
+            time.sleep(random.uniform(0.1, 0.4))
+            
+            btn.click()
+            
+            # --- 视觉凝视：监听 DOM 的变化判定结果 ---
+            timeout = 15.0 # 最多等 15 秒出结果
+            elapsed = 0.0
+            found_email = "未查到公开邮箱"
+            cloudflare_stuck = True
+            
+            while elapsed < timeout:
+                time.sleep(0.5)
+                elapsed += 0.5
+                html_text = str(page.html)
+                
+                # 方案 1：匹配真实的邮箱输出（确保后缀正是我们在查的这家公司）
+                # 注意：邮件里可能会有下划线或短横线
+                email_regex = r'[a-zA-Z0-9_.+-]+@' + re.escape(domain)
+                match = re.search(email_regex, html_text, re.IGNORECASE)
+                if match:
+                    # 去除非属于目标邮箱的脏数据
+                    found_email = match.group(0).lower()
+                    cloudflare_stuck = False
+                    break
+                    
+                # 方案 2：捕捉明确的“报错文本”或“没找到文本”
+                lower_html = html_text.lower()
+                if "unverified email" in lower_html or "couldn't find" in lower_html or "no format found" in lower_html or "not found" in lower_html:
+                    found_email = "未查到公开邮箱"
+                    cloudflare_stuck = False
+                    break
+                
+                # 方案 3：捕捉 IP 限流（Rate Limit）
+                if "too many requests" in lower_html or "limit reached" in lower_html:
+                    found_email = "网站提示: IP调用达极限"
+                    cloudflare_stuck = False
+                    break
 
-        print(f"[>] 第 {request_count+1}/14 次请求 - 查找: {name} @ {domain} ... ", end="", flush=True)
-        email = find_email_api(name, domain)
-        print(f"[{email}]")
-        
-        base_info['邮件联系方式'] = email
-        results.append(base_info)
-        
-        # == 限流检测与阻断逻辑 ==
-        request_count += 1
-        if request_count == 14:
-            elapsed = time.time() - batch_start_time
-            if elapsed < 60.0:
-                # 满 14 次且耗时不足一分钟，等到一分钟并额外缓冲 2 秒
-                sleep_time = 60.0 - elapsed + 2.0
-                print(f"\n[!] 触发限流保护: 已用尽 14 次并发额度 (耗时 {elapsed:.1f}s)。")
-                print(f"[!] 强制冷却洗牌... 等待 {sleep_time:.1f} 秒后重置计时池。")
-                time.sleep(sleep_time)
-                print("[*] 冷却完毕，重新进入下一个 14 RPM 周期。\n")
-            # 无论是否罚站，满 14 次后计时器与计数器清零
-            request_count = 0
+            if cloudflare_stuck:
+                # 过了 15 秒既没有拿到邮箱，也没有看到 failed 的文字提示，说明整个网页死循环或者卡验证码了
+                print("\033[91m    [!!] 警告报错: 这个操作被 Cloudflare 彻底卡死 (死活不出结果)，已被静默防御墙拦截。\033[0m")
+                found_email = "被静默防御墙拦截"
+            else:
+                print(f"    -> 成功抓取: [{found_email}]")
+
+            base_info['邮件联系方式'] = found_email
+            results.append(base_info)
+            
+            # -------- 强制摸鱼休息时间 (规避第二道墙：IP 行为限流) --------
+            # [随机 5 到 10 秒]
+            delay = random.uniform(5.0, 10.0)
+            print(f"    [摸鱼防封] 实习生正在假装看屏幕，强制休息 {delay:.2f} 秒...\n")
+            time.sleep(delay)
+            
+            # 刷新页面以清理上一轮的数据痕迹（有助于降低被封禁几率）
+            page.get('https://mailmeteor.com/tools/email-finder', retry=2)
+            time.sleep(1.5)
+            
+        except Exception as e:
+            print(f"\033[91m    [!!] 页面交互崩溃: {e}\033[0m")
+            base_info['邮件联系方式'] = '页面崩溃跳过'
+            results.append(base_info)
+            break 
+            
+    print("[*] 断开全息操控，关闭浏览器...")
+    page.quit()
 
     if not results and not missing_info:
         print("\n[-] 警告：名单完全为空，未生成任何表格。")
         return
 
-    print(f"[*] 写入 {output_file} ... ", end="", flush=True)
+    print(f"[*] 综合记录 {len(results)} 条。正在写入 {output_file} ... ", end="", flush=True)
     os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
     
     with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
