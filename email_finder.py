@@ -127,30 +127,28 @@ def main():
             btn.click()
             
             # --- 视觉凝视：监听 DOM 的变化判定结果 ---
-            timeout = 15.0 # 最多等 15 秒出结果
+            timeout = 30.0 # 最多等 30 秒出结果（真正的无限等很容易造成永久死锁）
             elapsed = 0.0
-            found_email = "未查到公开邮箱"
+            found_email = "等待结果超时"
             cloudflare_stuck = True
             
             while elapsed < timeout:
                 time.sleep(0.5)
                 elapsed += 0.5
                 html_text = str(page.html)
+                lower_html = html_text.lower()
                 
                 # 方案 1：匹配真实的邮箱输出（确保后缀正是我们在查的这家公司）
-                # 注意：邮件里可能会有下划线或短横线
                 email_regex = r'[a-zA-Z0-9_.+-]+@' + re.escape(domain)
                 match = re.search(email_regex, html_text, re.IGNORECASE)
                 if match:
-                    # 去除非属于目标邮箱的脏数据
                     found_email = match.group(0).lower()
                     cloudflare_stuck = False
                     break
                     
                 # 方案 2：捕捉明确的“报错文本”或“没找到文本”
-                lower_html = html_text.lower()
-                if "unverified email" in lower_html or "couldn't find" in lower_html or "no format found" in lower_html or "not found" in lower_html:
-                    found_email = "未查到公开邮箱"
+                if "no result" in lower_html or "not found" in lower_html or "couldn't find" in lower_html or "no format found" in lower_html or "unverified email" in lower_html:
+                    found_email = "No results found"
                     cloudflare_stuck = False
                     break
                 
@@ -161,8 +159,8 @@ def main():
                     break
 
             if cloudflare_stuck:
-                # 过了 15 秒既没有拿到邮箱，也没有看到 failed 的文字提示，说明整个网页死循环或者卡验证码了
-                print("\033[91m    [!!] 警告报错: 这个操作被 Cloudflare 彻底卡死 (死活不出结果)，已被静默防御墙拦截。\033[0m")
+                # 过了 30 秒既没有拿到邮箱，也没有看到 failed 的文字提示
+                print("\033[91m    [!!] 警告报错: 这个操作卡死了至少 30 秒 (死活不出结果)，疑似遭到 Cloudflare 发难或者网页结构卡顿。\033[0m")
                 found_email = "被静默防御墙拦截"
             else:
                 print(f"    -> 成功抓取: [{found_email}]")
