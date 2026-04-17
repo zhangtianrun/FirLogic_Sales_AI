@@ -136,36 +136,33 @@ def main():
                 time.sleep(0.5)
                 elapsed += 0.5
                 
-                # 获取页面所有纯可视文本（无视任何 HTML 标签的干扰！）
+                # 方案 1：全局捕捉 IP 封锁（如果被封锁，通常是弹窗或覆盖全屏）
                 body_ele = page.ele('t:body', timeout=0)
-                visible_text = body_ele.text if body_ele else ""
-                html_text = str(page.html)
+                visible_text = body_ele.text.lower() if body_ele else ""
                 
-                lower_visible = visible_text.lower()
-                lower_html = html_text.lower()
-                
-                # 方案 1：匹配真实的邮箱输出（确保后缀正是我们在查的这家公司）
-                email_regex = r'[a-zA-Z0-9_.+-]+@' + re.escape(domain)
-                
-                # 必须对【纯文本】而不是源码进行正则搜索！防范网页前端把 @ 字母包在 <span class="highlight"> 里这种鬼把戏
-                match = re.search(email_regex, visible_text, re.IGNORECASE)
-                if match:
-                    found_email = match.group(0).lower()
-                    cloudflare_stuck = False
-                    break
-                    
-                # 方案 2：捕捉明确的“报错文本”或“没找到文本”
-                # 在纯文本和源码双端比对，防止漏掉元素
-                if "no result" in lower_visible or "not found" in lower_visible or "couldn't find" in lower_visible or "no format found" in lower_visible or "unverified email" in lower_visible:
-                    found_email = "No results found"
-                    cloudflare_stuck = False
-                    break
-                
-                # 方案 3：捕捉 IP 限流（Rate Limit）
-                if "too many requests" in lower_html or "limit reached" in lower_html:
+                if "too many requests" in visible_text or "limit reached" in visible_text:
                     found_email = "网站提示: IP调用达极限"
                     cloudflare_stuck = False
                     break
+                
+                # 方案 2：精准狙击结果渲染区域（也就是您截图里的 #email-finder-results）
+                result_section = page.ele('#email-finder-results', timeout=0)
+                if result_section:
+                    sec_text = result_section.text.lower()
+                    
+                    # 极其精确：直奔那个装载邮箱的专属小盒子！
+                    email_span = result_section.ele('.email-finder__text', timeout=0)
+                    if email_span and '@' in email_span.text:
+                        # 完美解决！不管它是 @claymark.com 还是 @claymarkusa.com，直接掏出来！
+                        found_email = email_span.text.strip().lower()
+                        cloudflare_stuck = False
+                        break
+                    
+                    # 如果结果区域里没有那个 span，说明出错了，直接读取该区域里的报错文本
+                    if "no result" in sec_text or "not found" in sec_text or "couldn't find" in sec_text or "no format found" in sec_text or "unverified email" in sec_text:
+                        found_email = "No results found"
+                        cloudflare_stuck = False
+                        break
 
             if cloudflare_stuck:
                 # 过了 30 秒既没有拿到邮箱，也没有看到 failed 的文字提示
