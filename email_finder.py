@@ -176,8 +176,8 @@ def main():
             results.append(base_info)
             
             # -------- 强制摸鱼休息时间 (规避第二道墙：IP 行为限流) --------
-            # [随机 5 到 10 秒]
-            delay = random.uniform(5.0, 10.0)
+            # [随机 4 到 8 秒马拉松乌龟档：速度提升，但在大型列表中提供长续航安全性]
+            delay = random.uniform(4.0, 8.0)
             print(f"    [摸鱼防封] 实习生正在假装看屏幕，强制休息 {delay:.2f} 秒...\n")
             time.sleep(delay)
             
