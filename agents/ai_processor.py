@@ -35,6 +35,15 @@ class StaffMember(BaseModel):
 class StaffIntelligence(BaseModel):
     members: list[StaffMember]
 
+class DirectExtractedPerson(BaseModel):
+    company_name: str = Field(description="公司名称 / The name of the company.")
+    name: str = Field(description="高管姓名 / The person's full name.")
+    title: str = Field(description="高管职务 / The person's job title or role. Leave empty string if not provided.")
+    email: str = Field(description="邮件联系方式 / The person's email address. Leave empty string if not provided.")
+
+class DirectExtractionResult(BaseModel):
+    people: list[DirectExtractedPerson]
+
 def retry_ai_call(func, *args, **kwargs):
     max_retries = 3
     base_delay = 15
@@ -161,4 +170,40 @@ def run_staff_test(company_name: str, model_name: str) -> dict:
         return json.loads(json_res.text).get("members", [])
     except Exception as e:
         print(f"    [!] Error in staff research for {company_name} with {model_name}: {e}")
+        return []
+
+def run_direct_extraction(raw_text: str) -> list[dict]:
+    print("    [AI] Bypassing pipeline: Automatically extracting contacts directly from unstructured text...")
+    
+    system_prompt = """
+You are an expert Data Extraction AI. The user will provide unstructured text containing companies, names, titles, and email addresses.
+Your task is to parse out every individual person mentioned, keeping track of which company they belong to (companies are usually used as section headers before a list of people).
+
+Extract exactly these 4 fields for every person:
+1. company_name (公司名称)
+2. name (高管姓名)
+3. title (高管职务)
+4. email (邮件联系方式)
+
+If a title or email is missing, leave the field empty.
+"""
+    
+    def _extract_pass():
+        return client.models.generate_content(
+            model=config.MODEL_NAME,
+            contents=[raw_text],
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                response_schema=DirectExtractionResult,
+                temperature=0.1
+            ),
+        )
+
+    try:
+        json_res = retry_ai_call(_extract_pass)
+        people_list = json.loads(json_res.text).get("people", [])
+        return people_list
+    except Exception as e:
+        print(f"    [!] Final error extracting unstructured data: {e}")
         return []
