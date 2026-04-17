@@ -4,7 +4,7 @@ import time
 import random
 import re
 import pandas as pd
-from DrissionPage import ChromiumPage
+from DrissionPage import ChromiumPage, ChromiumOptions
 
 def get_args():
     parser = argparse.ArgumentParser(description="FirLogic Email Finder - DrissionPage Geek Mode")
@@ -65,7 +65,15 @@ def main():
     print("---------------------------------------------------------")
     print("[*] 正在拉起本地 Chrome 浏览器...")
     try:
-        page = ChromiumPage()
+        co = ChromiumOptions()
+        # 严禁挂起后台隐藏的窗口
+        co.set_argument('--disable-backgrounding-occluded-windows')
+        # 严禁限制后台标签页的定时器（保持全速运行）
+        co.set_argument('--disable-background-timer-throttling')
+        # 严禁将后台渲染器降级
+        co.set_argument('--disable-renderer-backgrounding')
+        
+        page = ChromiumPage(co)
     except Exception as e:
         print(f"\n\033[91m[!] 启动浏览器失败！可能没有找到 Chrome 浏览器。报错: {e}\033[0m")
         return
@@ -127,7 +135,7 @@ def main():
             btn.click()
             
             # --- 视觉凝视：监听 DOM 的变化判定结果 ---
-            timeout = 60.0 # 最多等 60 秒出结果（真正的无限等很容易造成永久死锁，对于澳洲等慢速服务器需要更长耐力）
+            timeout = 120.0 # 最多等 120 秒出结果（两分钟极光级防御，应对超慢速服务器）
             elapsed = 0.0
             found_email = "等待结果超时"
             cloudflare_stuck = True
@@ -166,8 +174,8 @@ def main():
                         break
 
             if cloudflare_stuck:
-                # 过了 60 秒既没有拿到邮箱，也没有看到 failed 的文字提示
-                print("\033[91m    [!!] 警告报错: 这个操作卡死了至少 60 秒 (死活不出结果)，疑似遭到 Cloudflare 发难或者网页结构卡顿。\033[0m")
+                # 过了 120 秒既没有拿到邮箱，也没有看到 failed 的文字提示
+                print("\033[91m    [!!] 警告报错: 这个操作卡死了至少 120 秒 (死活不出结果)，疑似遭到 Cloudflare 发难或者网页结构卡顿。\033[0m")
                 found_email = "被静默防御墙拦截"
             else:
                 print(f"    -> 成功抓取: [{found_email}]")
