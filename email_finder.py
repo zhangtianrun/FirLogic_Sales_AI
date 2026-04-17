@@ -127,7 +127,7 @@ def main():
             btn.click()
             
             # --- 视觉凝视：监听 DOM 的变化判定结果 ---
-            timeout = 30.0 # 最多等 30 秒出结果（真正的无限等很容易造成永久死锁）
+            timeout = 60.0 # 最多等 60 秒出结果（真正的无限等很容易造成永久死锁，对于澳洲等慢速服务器需要更长耐力）
             elapsed = 0.0
             found_email = "等待结果超时"
             cloudflare_stuck = True
@@ -166,8 +166,8 @@ def main():
                         break
 
             if cloudflare_stuck:
-                # 过了 30 秒既没有拿到邮箱，也没有看到 failed 的文字提示
-                print("\033[91m    [!!] 警告报错: 这个操作卡死了至少 30 秒 (死活不出结果)，疑似遭到 Cloudflare 发难或者网页结构卡顿。\033[0m")
+                # 过了 60 秒既没有拿到邮箱，也没有看到 failed 的文字提示
+                print("\033[91m    [!!] 警告报错: 这个操作卡死了至少 60 秒 (死活不出结果)，疑似遭到 Cloudflare 发难或者网页结构卡顿。\033[0m")
                 found_email = "被静默防御墙拦截"
             else:
                 print(f"    -> 成功抓取: [{found_email}]")
