@@ -150,15 +150,16 @@ def main():
                 if result_section:
                     sec_text = result_section.text.lower()
                     
-                    # 极其精确：直奔那个装载邮箱的专属小盒子！
-                    email_span = result_section.ele('.email-finder__text', timeout=0)
-                    if email_span and '@' in email_span.text:
-                        # 完美解决！不管它是 @claymark.com 还是 @claymarkusa.com，直接掏出来！
-                        found_email = email_span.text.strip().lower()
+                    # 极其精确：我们已经在这个结果小盒子里了，只要这里面出现任何合法的邮箱格式（不再死磕某个特定域名，彻底防止 usa 这种别名），直接掏出来！
+                    # 也不死磕 CSS 类名（Mailmeteor 对不同认证状态的邮箱可能会换衣服变色）
+                    generic_email_regex = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+                    match = re.search(generic_email_regex, sec_text)
+                    if match:
+                        found_email = match.group(0).lower()
                         cloudflare_stuck = False
                         break
                     
-                    # 如果结果区域里没有那个 span，说明出错了，直接读取该区域里的报错文本
+                    # 如果结果区域里没有邮箱格式，说明出错了，直接读取该区域里的报错文本
                     if "no result" in sec_text or "not found" in sec_text or "couldn't find" in sec_text or "no format found" in sec_text or "unverified email" in sec_text:
                         found_email = "No results found"
                         cloudflare_stuck = False
