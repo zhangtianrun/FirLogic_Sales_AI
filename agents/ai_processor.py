@@ -150,16 +150,34 @@ Output all research notes including official site URL, employee scale, and facto
         }
 
 def run_staff_test(company_name: str, model_name: str) -> dict:
-    print(f"    [AI-Search] Performing Staff Penetration Research for: {company_name} using {model_name}")
+    print(f"    [AI-Sniper] Performing Hybrid Penetration Research for: {company_name}...")
+    
+    # 混合狙击策略：兼顾通用网页、定点报告、以及专业名录
+    hunting_prompt = f"""
+You are a High-Precision Executive Sniper. Your goal is to find core management and key operational leaders for: {company_name}.
+
+PRIORITY ROLES:
+1. Mill Managers / Operations Managers (Directly benefit from scaling speed).
+2. Log Procurement / Supply Chain Managers (Deep interest in log measurement accuracy).
+3. Production Managers / Site Managers.
+4. Directors / CEO (Decision makers).
+
+STRATEGY:
+- Pass 1: PDF DOCUMENT INTELLIGENCE. Search: filetype:pdf "{company_name}" "Annual Report" OR "Sustainability Report" OR "Company Profile". 
+- Pass 2: DIRECTORY SNIPING. Search: site:zoominfo.com/p/ OR site:linkedin.com/company "{company_name}" manager.
+- Pass 3: GENERAL GOOGLE SEARCH. Search: "{company_name}" management team roles.
+
+NOTE ON DATA AGE: If you find an official report from 2022-2024, extract those names even if they aren't on LinkedIn. Label them as '[Report Source]'.
+"""
     
     def _search_pass():
         return client.models.generate_content(
             model=model_name,
-            contents=[f"Exhaustively search for the core management team and managers (Production, Log, Finance) of the company: {company_name}. I need names, titles, and links."],
+            contents=[hunting_prompt],
             config=types.GenerateContentConfig(
                 system_instruction=config.PROMPT_STAFF_RESEARCH,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.4
+                temperature=0.3
             ),
         )
 
@@ -176,15 +194,15 @@ def run_staff_test(company_name: str, model_name: str) -> dict:
         )
 
     try:
-        # Pass 1: Grounded Search
+        # Pass 1: Grounded Sniper Research
         search_res = retry_ai_call(_search_pass)
-        research_text = search_res.text
+        research_text = search_res.text if search_res.text else "No staff research found."
         
         # Pass 2: JSON Formatting
-        json_res = retry_ai_call(_format_pass, research_text)
+        json_res = retry_ai_call(_format_pass, research_text[:15000])
         return json.loads(json_res.text).get("members", [])
     except Exception as e:
-        print(f"    [!] Error in staff research for {company_name} with {model_name}: {e}")
+        print(f"    [!] Error in staff sniper for {company_name}: {e}")
         return []
 
 def run_direct_extraction(raw_text: str) -> list[dict]:
