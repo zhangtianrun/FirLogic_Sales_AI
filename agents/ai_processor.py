@@ -216,35 +216,52 @@ If a title or email is missing, leave the field empty.
 def run_email_context_research(name: str, company: str) -> dict:
     print(f"    [AI-Context] Researching demographics and geography for: {name} at {company}...")
     
-    system_prompt = """
-You are an expert Sales Intelligence Profiler. The user will provide a name and a company.
-1. Determine the likely gender of the name to output 'Mr.' or 'Ms.'. For ambiguous names, default to 'Mr.' unless clear.
-2. Strip away any junk titles (e.g., 'CEO', '集团主席', 'junior') from the name to extract only the pure legal Last Name (Surname).
-3. Search Google to find the main operating location of the company. 
-   - If it is a single-site local or regional mill, output a specific area (e.g., 'the Vancouver area', 'the Surrey area').
-   - If it is a massive multi-site organization, output a higher-level region like the country or state (e.g., 'Canada' or 'British Columbia').
+    # 第一步：搜索并提取原始情报（带联网搜索权限）
+    def _search_pass():
+        search_prompt = f"""
+Research this person: {name} at company: {company}.
+I need three pieces of information to write a professional email:
+1. Gender of the person (to decide Mr. or Ms.).
+2. Their pure English legal Last Name (Surname). Strip away all titles like CEO, Junior, etc.
+3. The main operating location of their company or factory. 
+   - If they have a specific local mill, give the town/area (e.g., 'the Noelville area').
+   - If they are a global corporation, give the country/state (e.g., 'Australia').
+Return the findings as raw text.
 """
-    
-    def _search_and_extract_pass():
         return client.models.generate_content(
             model=config.MODEL_NAME,
-            contents=[f"Target Person: {name}\nTarget Company: {company}"],
+            contents=[search_prompt],
             config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
-                response_mime_type="application/json",
-                response_schema=EmailDraftInfo,
                 temperature=0.2
             ),
         )
 
+    # 第二步：将原始情报整理成标准 JSON 格式（严禁联网，启用 JSON 模式）
+    def _format_pass(raw_research_text):
+        return client.models.generate_content(
+            model=config.MODEL_NAME,
+            contents=[raw_research_text],
+            config=types.GenerateContentConfig(
+                system_instruction="You are a data formatting specialist. Extract the gathered intelligence and output it strictly according to the provided JSON schema.",
+                response_mime_type="application/json",
+                response_schema=EmailDraftInfo,
+                temperature=0.1
+            ),
+        )
+
     try:
-        json_res = retry_ai_call(_search_and_extract_pass)
+        # 运行搜索波
+        search_res = retry_ai_call(_search_pass)
+        raw_text = search_res.text if search_res.text else "No research found."
+        
+        # 运行格式波
+        json_res = retry_ai_call(_format_pass, raw_text)
         return json.loads(json_res.text)
     except Exception as e:
         print(f"    [!] Warning: Error getting context for {name} ({company}): {e}")
-        # Default fallback
-        parts = name.replace("——", " ").split()
-        fallback_last = parts[-1] if parts else name
+        # Default fallback logic
+        parts = str(name).replace("——", " ").split()
+        fallback_last = parts[-1] if parts else str(name)
         return {"salutation": "Mr.", "last_name": fallback_last, "location": "your region"}
 
