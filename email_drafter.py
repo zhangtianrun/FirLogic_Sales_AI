@@ -87,6 +87,9 @@ def main():
 
     results = []
     skipped_count = 0
+    
+    # 公司地理位置缓存：一家公司只查一次 Google，省钱、提速、保一致性
+    company_location_cache = {}
 
     for idx, row in df.iterrows():
         company = str(row.get('公司名称', '')).strip()
@@ -101,14 +104,27 @@ def main():
             skipped_count += 1
             continue
             
-        print(f"\n[>] 正在为 {name} ({company}) 生成信件情报...")
+        # 确定域名锚点：优先从表格读，没有则从邮箱反推
+        raw_website = str(row.get('公司网站', row.get('官方网站', row.get('Website', '')))).strip()
+        domain = raw_website
         
-        # 调用大模型获取地理位置和性别姓氏
-        context = ai_processor.run_email_context_research(name, company)
+        if not domain or domain.lower() == 'nan':
+            # 从邮箱反推域名 (例如: dave@inglewoodsawmill.com.au -> inglewoodsawmill.com.au)
+            if "@" in email:
+                domain = email.split("@")[-1].strip()
         
-        salutation = context.get('salutation', 'Mr.')
-        last_name = context.get('last_name', name.split()[-1] if name.split() else name)
-        location = context.get('location', 'your region')
+        # 1. 获取地理位置（查缓存或查 AI）
+        if company not in company_location_cache:
+            location = ai_processor.run_company_location_research(company, domain)
+            company_location_cache[company] = location
+        else:
+            location = company_location_cache[company]
+            
+        # 2. 获取个人身份信息（不联网 AI）
+        identity = ai_processor.run_identity_analysis(name)
+        
+        salutation = identity.get('salutation', 'Mr.')
+        last_name = identity.get('last_name', name.split()[-1] if name.split() else name)
         
         # 组装邮件
         subject, body = build_email_template(company, salutation, last_name, location)

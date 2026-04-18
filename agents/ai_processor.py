@@ -24,6 +24,7 @@ class IntelligenceOutput(BaseModel):
     log_scanner_intel: str = Field(description="3D扫描或优化技术的证据及品牌 (中文).")
     automation_details: str = Field(description="自动化流水线、干燥窑等详情 (中文).")
     rationale: str = Field(description="判定理由 (中文).")
+    discovery_source: str = Field(description="域名发现的来源提示 (例如: 'Official Site', 'ZoomInfo', 'Inferred from email').")
 
 class StaffMember(BaseModel):
     name: str = Field(description="人员姓名.")
@@ -89,16 +90,28 @@ def extract_entities(raw_text: str) -> list[str]:
 
 def run_grounded_research(company_name: str) -> dict:
     import time
-    print(f"    [AI-Search] Performing deep research for: {company_name}")
+    print(f"    [AI-Hunter] Launching Multi-Dimensional Hunt for: {company_name}")
+    
+    # 核心指令：要求 AI 采用您提供的三层逻辑（SEO、附件逆流、社交跳板）
+    hunting_prompt = f"""
+You are a High-Precision Sales Intelligence Hunter. Your mission is to find the OFFICIAL CORPORATE DOMAIN for: {company_name} (Expected Industry: Timber/Sawmill/Wood products in Australia).
+
+STRATEGY:
+1. SEO HEURISTICS: Search for the company name combined with industry terms like 'sawmill', 'timber', 'lumber' AND region 'Australia'. 
+2. REVERSE ENGINEERING: Look for email addresses in search snippets (e.g., info@company.com.au). If found, REVERSE THE DOMAIN.
+3. SOCIAL/DIRECTORY ANCHORS: Prioritize results from ZoomInfo, LinkedIn Company Pages, and Yellow Pages Australia. Extract the website link from these profiles.
+
+Output all research notes including official site URL, employee scale, and factory details.
+"""
     
     def _search_pass():
         return client.models.generate_content(
             model=config.MODEL_NAME,
-            contents=[f"Research {company_name} wood products, sawmills, and factory facilities. We need the official website URL and estimated employee count (look for LinkedIn/business directory info if needed). Also check for log scanning technology or primary processing assets."],
+            contents=[hunting_prompt],
             config=types.GenerateContentConfig(
                 system_instruction=config.PROMPT_DEEP_RESEARCH,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.4
+                temperature=0.3
             ),
         )
 
@@ -115,16 +128,12 @@ def run_grounded_research(company_name: str) -> dict:
         )
 
     try:
-        # Pass 1: Grounded Search
+        # Pass 1: Grounded Hunting
         search_res = retry_ai_call(_search_pass)
         research_text = search_res.text if search_res.text else "No research found."
         
-        # Clean text to avoid SDK validation errors for noisy/long input
-        # We take the first 15000 characters which is plenty for a summary but safe for the schema
-        research_text = research_text[:15000] 
-        
         # Pass 2: JSON Formatting
-        json_res = retry_ai_call(_format_pass, research_text)
+        json_res = retry_ai_call(_format_pass, research_text[:15000])
         return json.loads(json_res.text)
     except Exception as e:
         print(f"    [!] Final error in research for {company_name}: {e}")
@@ -136,7 +145,8 @@ def run_grounded_research(company_name: str) -> dict:
             "factory_count": "错误",
             "log_scanner_intel": "错误",
             "automation_details": "错误",
-            "rationale": str(e)
+            "rationale": str(e),
+            "discovery_source": "None"
         }
 
 def run_staff_test(company_name: str, model_name: str) -> dict:
@@ -213,55 +223,74 @@ If a title or email is missing, leave the field empty.
         print(f"    [!] Final error extracting unstructured data: {e}")
         return []
 
-def run_email_context_research(name: str, company: str) -> dict:
-    print(f"    [AI-Context] Researching demographics and geography for: {name} at {company}...")
+def run_company_location_research(company: str, domain: str = "") -> str:
+    print(f"    [AI-Locate] Identifying regional footprint for: {company}...")
     
-    # 第一步：搜索并提取原始情报（带联网搜索权限）
-    def _search_pass():
-        search_prompt = f"""
-Research this person: {name} at company: {company}.
-I need three pieces of information to write a professional email:
-1. Gender of the person (to decide Mr. or Ms.).
-2. Their pure English legal Last Name (Surname). Strip away all titles like CEO, Junior, etc.
-3. The main operating location of their company or factory. 
-   - If they have a specific local mill, give the town/area (e.g., 'the Noelville area').
-   - If they are a global corporation, give the country/state (e.g., 'Australia').
-Return the findings as raw text.
+    # 采用“宁模糊不写错”的决策逻辑
+    locate_prompt = f"""
+Identify the primary operating location or factory headquarters for the timber company: {company}.
+Use the official domain as an anchor if provided: {domain}.
+
+CRITICAL POLICY:
+- If there is only 1 primary site, output the specific town/area (e.g., 'the Mt Gambier area').
+- If there are multiple sites or inconsistency, output the State/Region (e.g., 'the Queensland area').
+- If only the country is certain, output the Country (e.g., 'Australia').
+- DO NOT guess or hallucinate specific towns if search results are unclear.
+- Use 'your region' if no location can be found.
+
+Return ONLY the final location string (e.g. 'the Burnaby area' or 'Australia').
 """
+    
+    def _search_pass():
         return client.models.generate_content(
             model=config.MODEL_NAME,
-            contents=[search_prompt],
+            contents=[locate_prompt],
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
                 temperature=0.2
             ),
         )
 
-    # 第二步：将原始情报整理成标准 JSON 格式（严禁联网，启用 JSON 模式）
-    def _format_pass(raw_research_text):
-        return client.models.generate_content(
+    try:
+        res = retry_ai_call(_search_pass)
+        return res.text.strip() if res.text else "your region"
+    except Exception as e:
+        print(f"    [!] Warning: Error locating {company}: {e}")
+        return "your region"
+
+def run_identity_analysis(name: str) -> dict:
+    # 纯文本处理，不强制联网，保护隐私且极速
+    print(f"    [AI-Identity] Extracting salutation and surname for: {name}")
+    
+    prompt = f"""
+From this input string: '{name}'
+1. Determine if the person is likely Mr. or Ms. (Default to Mr. if unclear).
+2. Extract ONLY the English Surname (Last Name). Strip all titles (CEO, Junior, etc.).
+Return JSON with 'salutation' and 'last_name'.
+"""
+    def _call():
+        response = client.models.generate_content(
             model=config.MODEL_NAME,
-            contents=[raw_research_text],
+            contents=[prompt],
             config=types.GenerateContentConfig(
-                system_instruction="You are a data formatting specialist. Extract the gathered intelligence and output it strictly according to the provided JSON schema.",
                 response_mime_type="application/json",
-                response_schema=EmailDraftInfo,
+                response_schema=EmailDraftInfo, # Reuse the existing schema for just two fields is fine
                 temperature=0.1
             ),
         )
+        return json.loads(response.text)
 
     try:
-        # 运行搜索波
-        search_res = retry_ai_call(_search_pass)
-        raw_text = search_res.text if search_res.text else "No research found."
-        
-        # 运行格式波
-        json_res = retry_ai_call(_format_pass, raw_text)
-        return json.loads(json_res.text)
-    except Exception as e:
-        print(f"    [!] Warning: Error getting context for {name} ({company}): {e}")
-        # Default fallback logic
-        parts = str(name).replace("——", " ").split()
-        fallback_last = parts[-1] if parts else str(name)
-        return {"salutation": "Mr.", "last_name": fallback_last, "location": "your region"}
+        return retry_ai_call(_call)
+    except Exception:
+        fallback_last = name.split()[-1] if name.split() else name
+        return {"salutation": "Mr.", "last_name": str(fallback_last), "location": ""}
+
+# Keep the legacy function for backward compatibility but internal refactor
+def run_email_context_research(name: str, company: str) -> dict:
+    # This is now just a wrapper that handles everything for Step 4
+    loc = run_company_location_research(company)
+    ident = run_identity_analysis(name)
+    ident['location'] = loc
+    return ident
 
