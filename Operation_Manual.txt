@@ -59,5 +59,17 @@ caffeinate -i ./venv/bin/python email_finder.py --input ~/Downloads/FirLogic_Sal
 ./venv/bin/python direct_extractor.py --input ~/Desktop/data.txt
 
 输出结果：
-将在 Downloads 文件夹中生成名为 FirLogic_Direct_Extraction_Report.xlsx 的终极表格，格式与 Step 3 的最终产物完全一致。
+将在 Downloads 文件夹中生成名为 FirLogic_Sales_Intel_Report_Step3B.xlsx 的终极表格，格式与 Step 3 的最终产物完全一致。
+
+---------------------------------------------------
+第五步 (Step 4)：自动写信 (Email Drafter)
+---------------------------------------------------
+核心功能：根据 Step 3 的名单，自动生成个性化的开发信（包括判断性别 Mr./Ms.，提取姓氏，以及搜索公司所在地）。
+
+执行指令：
+./venv/bin/python email_drafter.py --input ~/Downloads/FirLogic_Sales_Intel_Report_Step3.xlsx
+
+输出结果：
+将在 Downloads 文件夹中生成 FirLogic_Sales_Intel_Report_Step4.xlsx。
+注意：表格已设置“禁止换行”，正文很长但只会显示一行，点击单元格可在上方编辑栏查看全文。
 ===================================================

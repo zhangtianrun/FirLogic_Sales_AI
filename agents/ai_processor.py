@@ -44,6 +44,11 @@ class DirectExtractedPerson(BaseModel):
 class DirectExtractionResult(BaseModel):
     people: list[DirectExtractedPerson]
 
+class EmailDraftInfo(BaseModel):
+    salutation: str = Field(description="Strictly output 'Mr.' or 'Ms.' based on the gender implied by the person's first name.")
+    last_name: str = Field(description="The pure English surname (last name) of the person, completely stripped of any titles, positions, non-English characters, or parenthetical remarks.")
+    location: str = Field(description="If the company has a single operating mill/HQ, return the specific town/region (e.g., 'the Noelville area'). If it is a large multi-site global/national corporation, return the Country or State (e.g., 'Australia' or 'New South Wales').")
+
 def retry_ai_call(func, *args, **kwargs):
     max_retries = 3
     base_delay = 15
@@ -207,3 +212,39 @@ If a title or email is missing, leave the field empty.
     except Exception as e:
         print(f"    [!] Final error extracting unstructured data: {e}")
         return []
+
+def run_email_context_research(name: str, company: str) -> dict:
+    print(f"    [AI-Context] Researching demographics and geography for: {name} at {company}...")
+    
+    system_prompt = """
+You are an expert Sales Intelligence Profiler. The user will provide a name and a company.
+1. Determine the likely gender of the name to output 'Mr.' or 'Ms.'. For ambiguous names, default to 'Mr.' unless clear.
+2. Strip away any junk titles (e.g., 'CEO', '集团主席', 'junior') from the name to extract only the pure legal Last Name (Surname).
+3. Search Google to find the main operating location of the company. 
+   - If it is a single-site local or regional mill, output a specific area (e.g., 'the Vancouver area', 'the Surrey area').
+   - If it is a massive multi-site organization, output a higher-level region like the country or state (e.g., 'Canada' or 'British Columbia').
+"""
+    
+    def _search_and_extract_pass():
+        return client.models.generate_content(
+            model=config.MODEL_NAME,
+            contents=[f"Target Person: {name}\nTarget Company: {company}"],
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                response_mime_type="application/json",
+                response_schema=EmailDraftInfo,
+                temperature=0.2
+            ),
+        )
+
+    try:
+        json_res = retry_ai_call(_search_and_extract_pass)
+        return json.loads(json_res.text)
+    except Exception as e:
+        print(f"    [!] Warning: Error getting context for {name} ({company}): {e}")
+        # Default fallback
+        parts = name.replace("——", " ").split()
+        fallback_last = parts[-1] if parts else name
+        return {"salutation": "Mr.", "last_name": fallback_last, "location": "your region"}
+

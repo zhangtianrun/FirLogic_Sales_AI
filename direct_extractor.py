@@ -28,7 +28,7 @@ def format_excel(file_path):
 
 def main():
     parser = argparse.ArgumentParser(description="FirLogic Sales AI - Direct Information Extraction")
-    default_output = os.path.expanduser("~/Downloads/FirLogic_Direct_Extraction_Report.xlsx")
+    default_output = os.path.expanduser("~/Downloads/FirLogic_Sales_Intel_Report_Step3B.xlsx")
     parser.add_argument('--input', type=str, required=True, help="Input file path (txt, docx, or csv/xlsx)")
     parser.add_argument('--output', type=str, default=default_output, help=f"Output file path (default: {default_output})")
     args = parser.parse_args()
