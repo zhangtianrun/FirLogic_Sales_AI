@@ -94,10 +94,10 @@ def main():
         email = str(row.get('邮件联系方式', '')).strip()
 
         # 核心过滤逻辑：只给已经拿到真实邮箱的人写信
-        invalid_markers = ["no result", "跳过", "拦截", "超时", "失败", "nan", ""]
+        invalid_markers = ["no result", "跳过", "拦截", "超时", "失败", "nan"]
         is_invalid = any(marker in email.lower() for marker in invalid_markers) or "@" not in email
         
-        if is_invalid or not company or not name:
+        if is_invalid or not company or not name or not email:
             skipped_count += 1
             continue
             
