@@ -328,7 +328,9 @@ CRITICAL RULES:
         )
 
     try:
-        research_text = "\n\n".join(results_pool) if results_pool else "No staff found."
+        # 单波次强力搜寻
+        res = _execute_recon(combined_query)
+        research_text = res.text if res.text else "No staff found."
         
         # 格式化输出 (加固 JSON 解析，增加缓冲区防止长名单截断)
         print(f"    [AI-Sniper] Crystallizing personnel data...")
