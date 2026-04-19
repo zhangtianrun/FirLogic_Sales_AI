@@ -80,27 +80,25 @@ def retry_ai_call(func, *args, **kwargs):
 def classify_wood_category(found_species_str: str) -> tuple[str, str]:
     """
     根据本地数据库对搜到的树种字符串进行分类。
-    返回: (category, rationale)
+    如果没有查到，则触发一次针对性的 AI 联网搜索进行“补课”。
     """
     if not found_species_str or "未知" in found_species_str or "未查明" in found_species_str:
         return "未知", "未搜寻到具体树种资料。"
 
     # 将搜到的树种串拆解为关键词 (支持中文、英文、逗号、空格、顿号)
     raw_keywords = re.split(r'[,，、\s/]+', found_species_str)
-    keywords = [k.strip().lower() for k in raw_keywords if k.strip()]
+    keywords = list(set([k.strip().lower() for k in raw_keywords if k.strip()]))
     
     found_soft = []
     found_hard = []
-    matched_any = False
+    unmatched_species = []
 
     # 深度匹配逻辑
     def is_match(db_entry_text, keyword):
-        # 简单包含关系匹配
         return keyword in db_entry_text.lower() or db_entry_text.lower() in keyword
 
     for kw in keywords:
         match_found = False
-        # 检查每个区域 (AU, CA, Generic)
         for region in WOOD_DB.values():
             # 检查软木库
             for s in region.get("Softwood", []):
@@ -117,18 +115,55 @@ def classify_wood_category(found_species_str: str) -> tuple[str, str]:
                     break
             if match_found: break
         
-        if match_found:
-            matched_any = True
+        if not match_found:
+            unmatched_species.append(kw)
 
-    if not matched_any:
-        return "未知", f"搜寻到的树种 ({found_species_str}) 不在预设数据库中，需人工核对。"
+    # 对于没匹配到的品种，启动 AI “实时补课”
+    live_discovery_notes = []
+    if unmatched_species:
+        print(f"    [AI-Learning] Database miss for: {unmatched_species}. Triggering live lookup...")
+        for unknown in unmatched_species:
+            try:
+                # 执行一次微小的联网判定
+                completion = client.models.generate_content(
+                    model=config.MODEL_NAME,
+                    contents=[f"Is '{unknown}' wood classified as a Hardwood or a Softwood? Return strictly 'Hardwood' or 'Softwood'. If unsure, return 'Unknown'."],
+                    config=types.GenerateContentConfig(
+                        tools=[types.Tool(google_search=types.GoogleSearch())],
+                        temperature=0.1
+                    )
+                )
+                answer = completion.text.strip().lower() if completion.text else ""
+                if "softwood" in answer:
+                    found_soft.append(unknown)
+                    live_discovery_notes.append(f"{unknown}(AI查明-软木)")
+                    print(f"    [!] AI identified {unknown} as Softwood.")
+                elif "hardwood" in answer:
+                    found_hard.append(unknown)
+                    live_discovery_notes.append(f"{unknown}(AI查明-硬木)")
+                    print(f"    [!] AI identified {unknown} as Hardwood.")
+                else:
+                    print(f"    [?] AI could not classify {unknown}.")
+            except Exception as e:
+                print(f"    [!] AI lookup failed for {unknown}: {e}")
 
-    if found_soft and found_hard:
-        return "混合", f"检测到混合资源：软木({', '.join(set(found_soft))}) & 硬木({', '.join(set(found_hard))})。"
-    elif found_soft:
-        return "软木", f"确认为纯软木作业：检测到 {', '.join(set(found_soft))}。"
+    # 汇总最终逻辑
+    rationale_prefix = ""
+    if live_discovery_notes:
+        rationale_prefix = f"【动态补课】检测到新树种: {', '.join(live_discovery_notes)} | "
+
+    if not found_soft and not found_hard:
+        return "未知", f"{rationale_prefix}搜寻到的树种 ({found_species_str}) 不在数据库且 AI 判定困难。"
+
+    final_soft = list(set(found_soft))
+    final_hard = list(set(found_hard))
+
+    if final_soft and final_hard:
+        return "混合", f"{rationale_prefix}混合资源：软木({', '.join(final_soft)}) & 硬木({', '.join(final_hard)})。"
+    elif final_soft:
+        return "软木", f"{rationale_prefix}纯软木：检测到 {', '.join(final_soft)}。"
     else:
-        return "硬木", f"确认为纯硬木作业：检测到 {', '.join(set(found_hard))}。"
+        return "硬木", f"{rationale_prefix}纯硬木：检测到 {', '.join(final_hard)}。"
 
 def extract_entities(raw_text: str) -> list[str]:
     print("    [AI] Extracting companies from text...")
