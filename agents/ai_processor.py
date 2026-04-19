@@ -284,33 +284,42 @@ STRATEGY:
 
 
 def run_staff_test(company_name: str, model_name: str) -> list[dict]:
-    print(f"    [AI-Sniper 2.0] High-Intensity Boolean Recon for: {company_name}...")
+    print(f"    [AI-Sniper 2.0] Aggressive Recon for: {company_name}...")
     
-    # 策略升级：集成全量 4 大意图梯队词库 (28 个高意图头衔)，压线 Google 32 单词限制
-    boolean_query = (
+    # 波次 1：高管锚定 (Leadership Anchor) - 专注 Owner, CEO, President
+    leadership_query = f'"{company_name}" AND ("Owner" OR "CEO" OR "President" OR "Founder" OR "Managing Director" OR "Principal")'
+    
+    # 波次 2：全域渗透 (Ops Recon) - 使用我们的 28 个林业职能词库
+    ops_query = (
         f'"{company_name}" AND ('
         '"Mill Manager" OR "Plant Manager" OR "Operations Manager" OR "Site Manager" OR "Production Manager" OR "Facility Manager" OR "General Manager" OR '
         '"Log Buyer" OR "Procurement Manager" OR "Wood Procurement" OR "Fibre Supply" OR "Fiber Supply" OR "Forestry Manager" OR "Woodlands Manager" OR '
         '"Chief Scaler" OR "Scaling Supervisor" OR "Quality Control Manager" OR "QC Manager" OR "Optimization Manager" OR "Process Improvement" OR "Innovation Director" OR '
-        '"CEO" OR "President" OR "Owner" OR "Founder" OR "Managing Director" OR "VP of Operations" OR "Vice President") '
-        'site:linkedin.com OR site:zoominfo.com'
+        '"Sales" OR "Export")'
     )
     
-    hunting_prompt = f"""
+    def _execute_recon(query, label):
+        print(f"      [Scan] {label}...")
+        prompt = f"""
 You are a High-Precision Executive Sniper. Your goal is to EXHAUSTIVELY find personnel for: {company_name}.
-
-TASK:
-Identify and extract individuals from Commercial (Sales/Export), Operations (Mill Managers), and Strategic Leadership.
-
-SEARCH STRATEGY:
-Execute this exact Boolean search: {boolean_query}
-Focus on search snippets (summaries) first for speed.
+Current Strategy: {query}
 
 CRITICAL RULES:
-1. REAL EMAILS ONLY: Extract emails ONLY if explicitly visible in search snippets or contact pages. DO NOT guess or infer patterns.
-2. EXHAUSTIVE EXTRACTION: Report EVERY relevant person found. If 15 people are found, list all 15.
-3. SNIPPET-FIRST: Prioritize rapid building of the list from result summaries to maximize speed.
+1. NO SOURCE LIMITS: Search the WHOLE PUBLIC WEB. Do not restrict to LinkedIn. Check news, directories, and industry reports.
+2. CONTEXTUAL EXTRACTION: Look for patterns like "John Doe, owner of {company_name}" in snippets.
+3. CAPTURE ALL ROLES: Extract names, titles, and departments.
+4. EVIDENCE-BASED EMAILS: Capture personal emails if explicitly found. Also capture info@, sales@, or office@ as backups.
+5. NO GUESSING: Do not infer email patterns. Only use what is found in text.
 """
+        return retry_ai_call(client.models.generate_content,
+            model=model_name,
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                system_instruction=config.PROMPT_STAFF_RESEARCH,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.3
+            ),
+        )
 
     def _format_pass(research_text):
         return client.models.generate_content(
@@ -325,18 +334,18 @@ CRITICAL RULES:
         )
 
     try:
-        # 单轮强力搜索
-        print(f"      [Scan] Firing single-pass boolean recon...")
-        res = retry_ai_call(client.models.generate_content,
-            model=model_name,
-            contents=[hunting_prompt],
-            config=types.GenerateContentConfig(
-                system_instruction=config.PROMPT_STAFF_RESEARCH,
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.3
-            ),
-        )
-        research_text = res.text if res.text else "No staff found."
+        results_pool = []
+        
+        # 轮次 1：抓大鱼 (Owners/CEOs)
+        res_lead = _execute_recon(leadership_query, "Leadership Anchor")
+        if res_lead.text: results_pool.append(res_lead.text)
+        
+        # 轮次 2：扫全员 (Management/Ops/Sales)
+        res_ops = _execute_recon(ops_query, "Total Operations Recon")
+        if res_ops.text: results_pool.append(res_ops.text)
+        
+        # 汇总合并
+        research_text = "\n\n".join(results_pool) if results_pool else "No staff found."
         
         # 格式化输出 (加固 JSON 解析，增加缓冲区防止长名单截断)
         print(f"    [AI-Sniper] Crystallizing personnel data...")
