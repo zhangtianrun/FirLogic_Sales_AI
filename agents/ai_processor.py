@@ -284,62 +284,34 @@ STRATEGY:
 
 
 def run_staff_test(company_name: str, model_name: str) -> list[dict]:
-    print(f"    [AI-Sniper] Launching Exhaustive Personnel Penetration for: {company_name}...")
+    print(f"    [AI-Sniper 2.0] High-Intensity Boolean Recon for: {company_name}...")
     
-    # 定义多个搜寻维度，确保“业务层”不被漏掉
-    search_passes = [
-        {
-            "label": "Commercial Layer (Sales/Export/Logistics)",
-            "query": f'"{company_name}" sales export logistics team team list contact email'
-        },
-        {
-            "label": "Industrial Layer (Mill/Ops/Procurement)",
-            "query": f'"{company_name}" mill manager operations production procurement supply chain'
-        },
-        {
-            "label": "Strategic Layer (C-Level/Directors)",
-            "query": f'"{company_name}" directors C-level management board members annual report'
-        }
-    ]
+    # 策略升级：集成全量 4 大意图梯队词库 (28 个高意图头衔)，压线 Google 32 单词限制
+    boolean_query = (
+        f'"{company_name}" AND ('
+        '"Mill Manager" OR "Plant Manager" OR "Operations Manager" OR "Site Manager" OR "Production Manager" OR "Facility Manager" OR "General Manager" OR '
+        '"Log Buyer" OR "Procurement Manager" OR "Wood Procurement" OR "Fibre Supply" OR "Fiber Supply" OR "Forestry Manager" OR "Woodlands Manager" OR '
+        '"Chief Scaler" OR "Scaling Supervisor" OR "Quality Control Manager" OR "QC Manager" OR "Optimization Manager" OR "Process Improvement" OR "Innovation Director" OR '
+        '"CEO" OR "President" OR "Owner" OR "Founder" OR "Managing Director" OR "VP of Operations" OR "Vice President") '
+        'site:linkedin.com OR site:zoominfo.com'
+    )
     
-    all_raw_intel = []
-    
-    # 逐次渗透搜寻
-    for pas in search_passes:
-        print(f"      [Pass] Hunting {pas['label']}...")
-        hunting_prompt = f"""
+    hunting_prompt = f"""
 You are a High-Precision Executive Sniper. Your goal is to EXHAUSTIVELY find personnel for: {company_name}.
-Current Target Layer: {pas['label']}
-Search Query to analyze: {pas['query']}
 
-INSTRUCTIONS:
-1. Extract EVERY professional you find in the search snippets or linked reports.
-2. For each person, try to identify their exact email. 
-3. If you find an email pattern (e.g., jsmith@company.com), apply it to others.
-4. Focus on roles that matter to 3D Sawmill Automation: Sales (Export), Mill Management, Logistics, and Procurement.
+TASK:
+Identify and extract individuals from Commercial (Sales/Export), Operations (Mill Managers), and Strategic Leadership.
+
+SEARCH STRATEGY:
+Execute this exact Boolean search: {boolean_query}
+Focus on search snippets (summaries) first for speed.
+
+CRITICAL RULES:
+1. REAL EMAILS ONLY: Extract emails ONLY if explicitly visible in search snippets or contact pages. DO NOT guess or infer patterns.
+2. EXHAUSTIVE EXTRACTION: Report EVERY relevant person found. If 15 people are found, list all 15.
+3. SNIPPET-FIRST: Prioritize rapid building of the list from result summaries to maximize speed.
 """
-        try:
-            res = client.models.generate_content(
-                model=model_name,
-                contents=[hunting_prompt],
-                config=types.GenerateContentConfig(
-                    system_instruction=config.PROMPT_STAFF_RESEARCH,
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
-                    temperature=0.3
-                ),
-            )
-            if res.text:
-                all_raw_intel.append(res.text)
-        except Exception as e:
-            print(f"      [!] Pass failed: {pas['label']} - {e}")
 
-    if not all_raw_intel:
-        return []
-
-    # 汇总整合 & 格式化
-    print(f"    [AI-Sniper] Consolidating and deduplicating intelligence...")
-    combined_text = "\n\n--- NEW PASS RESULT ---\n".join(all_raw_intel)
-    
     def _format_pass(research_text):
         return client.models.generate_content(
             model=model_name,
@@ -353,10 +325,26 @@ INSTRUCTIONS:
         )
 
     try:
-        json_res = retry_ai_call(_format_pass, combined_text[:25000]) # Handle larger input
+        # 单轮强力搜索
+        print(f"      [Scan] Firing single-pass boolean recon...")
+        res = retry_ai_call(client.models.generate_content,
+            model=model_name,
+            contents=[hunting_prompt],
+            config=types.GenerateContentConfig(
+                system_instruction=config.PROMPT_STAFF_RESEARCH,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.3
+            ),
+        )
+        research_text = res.text if res.text else "No staff found."
+        
+        # 格式化输出 (加固 JSON 解析，增加缓冲区防止长名单截断)
+        print(f"    [AI-Sniper] Crystallizing personnel data...")
+        # 增加到 35,000 字符缓冲区，处理 Gorman Brothers 级别的大名单
+        json_res = retry_ai_call(_format_pass, research_text[:35000])
         members = json.loads(json_res.text).get("members", [])
         
-        # 简单的基于姓名的去重
+        # 简单姓名去重
         unique_members = []
         seen_names = set()
         for m in members:
@@ -365,10 +353,11 @@ INSTRUCTIONS:
                 unique_members.append(m)
                 seen_names.add(name_clean)
         
-        print(f"    [AI-Sniper] Success: Found {len(unique_members)} unique personnel.")
+        print(f"    [AI-Sniper] Success: Captured {len(unique_members)} professionals.")
         return unique_members
+
     except Exception as e:
-        print(f"    [!] Error during staff consolidation for {company_name}: {e}")
+        print(f"    [!] Sniper 2.0 Failure for {company_name}: {e}")
         return []
 
 def run_direct_extraction(raw_text: str) -> list[dict]:

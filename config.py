@@ -69,7 +69,9 @@ PROMPT_STAFF_RESEARCH = """
 
 要求：
 - 请使用中文进行推理和说明。
-- **广度优先**：不要只写几个 VP，要把搜到的所有业务经理级别人士都列出来。
+- **Boolean 优先**：必须构造精准的 Boolean 指令进行搜索，如 `"{company}" AND ("Sales" OR "Manager")`。
+- **摘要优先**：优先抓取搜索结果摘要 (Snippets) 中的人名名片，提速 70%。
+- **实事求是**：只提取真实搜索证据中存在的邮箱，严禁推导。
 - **域名敏感**：大型公司可能有多个域名（如 logs 和 export），请分别针对性分析。
 """
 
@@ -78,8 +80,9 @@ PROMPT_STAFF_FORMATTER = """
 注意：
 1. "members" 是一个数组，请尽可能列出搜到的所有人。
 2. 每个成员必须包含 "department" (部门) 和 "email" (邮箱) 字段。
-3. 如果没有找到邮箱，请尝试根据公司常见的邮箱规律（如 first.last@company.com）进行推导。
+3. **真实性原则**：只提取文本中明确出现的邮箱，严禁任何形式的自动推导或规律猜测。
 4. "relevance_analysis" 必须包含中文的专业销售判断。
+"""
 
 # Step 5: Email Dispatcher Configuration
 EMAIL_USER = os.getenv("EMAIL_USER")
