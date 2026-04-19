@@ -13,6 +13,8 @@ def flatten_results(results_list):
             flat_item = {k: item.get(k, "") for k in base_keys}
             flat_item["高管姓名"] = "未找到"
             flat_item["高管职务"] = "未找到"
+            flat_item["所属部门"] = "未找到"
+            flat_item["高管邮箱"] = "未找到"
             flat_item["职责描述"] = "未找到"
             flat_item["销售分析"] = "未找到"
             flat_item["情报来源链接"] = "未找到"
@@ -27,6 +29,8 @@ def flatten_results(results_list):
                         flat_item[k] = "" # Leave empty for merging
                 flat_item["高管姓名"] = staff.get("name", "")
                 flat_item["高管职务"] = staff.get("title", "")
+                flat_item["所属部门"] = staff.get("department", "")
+                flat_item["高管邮箱"] = staff.get("email", "")
                 flat_item["职责描述"] = staff.get("role_description", "")
                 flat_item["销售分析"] = staff.get("relevance_analysis", "")
                 flat_item["情报来源链接"] = staff.get("source_link", "")
@@ -78,7 +82,7 @@ def process_and_export(input_path, output_path):
     # Updated Column Order (Chinese)
     cols_target = [
         "公司名称", "网站", "木材类别", "人员数量", "厂数量", 
-        "高管姓名", "高管职务", "职责描述", "销售分析", "情报来源链接",
+        "高管姓名", "高管职务", "所属部门", "高管邮箱", "职责描述", "销售分析", "情报来源链接",
         "业务分类", "具体品种", "自动化程度", "竞品设备", "理由"
     ]
     

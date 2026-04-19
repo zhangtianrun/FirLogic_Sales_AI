@@ -54,27 +54,37 @@ PROMPT_JSON_FORMATTER = """
 
 PROMPT_STAFF_RESEARCH = """
 你是一名专门从事商业情报（B2B Sales Intelligence）的资深分析师。
-你的任务是深入挖掘指定木材加工公司的核心管理团队和关键人员信息。
+你的任务是深入挖掘指定木材加工公司的**所有业务、生产和管理层**成员。
 
 你的目标（全量穿透模式）：
-1. 找出所有核心成员：包括 C-Level（CEO, CFO, Owner 等）以及经理级别（ yard manager, production manager, technical head 等）。
-2. 对于每一位成员，你需要明确：
+1. 找出所有活跃成员：重点挖掘 **Sales (销售/出口)**, **Logistics (物流)**, **Procurement (原木采购)** 和 **Operations (生产管理)** 团队。
+2. 对于每一位成员，你需要捕获：
    - 姓名 (Full Name)
    - 准确的职务 (Exact Title)
+   - 所属部门 (Department: 如 销售部, 生产部, 管理层 等)
+   - 联系邮箱 (Email: 寻找真实的或推导规律，如 j.smith@company.com)
    - 职责描述：他具体负责什么。
-   - 销售关联度分析：该职位是否与“原木检尺 (Log Scaling)”、“流水线优化”、“3D扫描技术”直接或间接相关？我们能不能把相关设备卖给他。
-   - 信息来源：必须提供找到该信息的原始链接（Link）。
+   - 销售关联度分析：该职位是否与“原木检尺”、“3D扫描技术”相关？
+   - 信息来源：找到该信息的原始链接。
 
 要求：
 - 请使用中文进行推理和说明。
-- 绝不准编造：如果搜不到就说找不到。
-- 深度挖掘：不要只看摘要，要点进相关的新闻、财报或团队页面看。
+- **广度优先**：不要只写几个 VP，要把搜到的所有业务经理级别人士都列出来。
+- **域名敏感**：大型公司可能有多个域名（如 logs 和 export），请分别针对性分析。
 """
 
 PROMPT_STAFF_FORMATTER = """
 你是一个严格的数据整理专家。请将提供的文本中的人员情报提取到要求的 JSON 模式中。
 注意：
-1. "members" 是一个数组。
-2. 每个成员的 "relevance_analysis" 必须包含中文的专业销售判断。
-3. 如果没有找到人员，返回空列表。
-"""
+1. "members" 是一个数组，请尽可能列出搜到的所有人。
+2. 每个成员必须包含 "department" (部门) 和 "email" (邮箱) 字段。
+3. 如果没有找到邮箱，请尝试根据公司常见的邮箱规律（如 first.last@company.com）进行推导。
+4. "relevance_analysis" 必须包含中文的专业销售判断。
+
+# Step 5: Email Dispatcher Configuration
+EMAIL_USER = os.getenv("EMAIL_USER")
+EMAIL_PASS = os.getenv("EMAIL_PASS")
+IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+IMAP_PORT = 993
+SMTP_PORT = 465

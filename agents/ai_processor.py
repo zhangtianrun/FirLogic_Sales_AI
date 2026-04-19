@@ -39,6 +39,8 @@ class IntelligenceOutput(BaseModel):
 class StaffMember(BaseModel):
     name: str = Field(description="人员姓名.")
     title: str = Field(description="人员职务.")
+    department: str = Field(description="所属部门 (如: 销售, 生产, 采购, 管理层).")
+    email: str = Field(description="联系邮箱 (如果没搜到, 尝试按规律推导或留空).")
     role_description: str = Field(description="职责详细描述 (中文).")
     relevance_analysis: str = Field(description="销售关联度分析：为什么此人对原木扫描仪销售很重要 (中文).")
     source_link: str = Field(description="获取此人情报的原始来源链接.")
@@ -80,49 +82,72 @@ def retry_ai_call(func, *args, **kwargs):
 def classify_wood_category(found_species_str: str) -> tuple[str, str]:
     """
     根据本地数据库对搜到的树种字符串进行分类。
-    如果没有查到，则触发一次针对性的 AI 联网搜索进行“补课”。
+    优化了匹配逻辑：优先进行全称/词组匹配，防止 'Red' 误命中。
     """
     if not found_species_str or "未知" in found_species_str or "未查明" in found_species_str:
         return "未知", "未搜寻到具体树种资料。"
 
-    # 将搜到的树种串拆解为关键词 (支持中文、英文、逗号、空格、顿号)
-    raw_keywords = re.split(r'[,，、\s/]+', found_species_str)
-    keywords = list(set([k.strip().lower() for k in raw_keywords if k.strip()]))
+    # 清洗和分词逻辑：不再简单按空格拆，而是尝试保留逗号分隔的短语
+    found_species_str = found_species_str.lower()
+    raw_phrases = re.split(r'[,，、/]+', found_species_str)
+    phrases = [p.strip() for p in raw_phrases if p.strip()]
     
     found_soft = []
     found_hard = []
-    unmatched_species = []
+    unmatched_phrases = []
 
-    # 深度匹配逻辑
-    def is_match(db_entry_text, keyword):
-        return keyword in db_entry_text.lower() or db_entry_text.lower() in keyword
-
-    for kw in keywords:
+    # 深度匹配逻辑：优先匹配数据库中的完整词组
+    for phrase in phrases:
         match_found = False
-        for region in WOOD_DB.values():
-            # 检查软木库
-            for s in region.get("Softwood", []):
-                if is_match(s, kw):
-                    found_soft.append(kw)
-                    match_found = True
-                    break
-            if match_found: break
-            # 检查硬木库
-            for h in region.get("Hardwood", []):
-                if is_match(h, kw):
-                    found_hard.append(kw)
-                    match_found = True
-                    break
+        
+        # 针对每个短语，去数据库里找
+        for reg_name, region in WOOD_DB.items():
+            # 搜寻每一个分类
+            for cat in ["Softwood", "Hardwood"]:
+                for db_entry in region.get(cat, []):
+                    db_entry_clean = db_entry.lower()
+                    # 规则 1：完全包含关系 (例如 'radiata pine' 包含在 'radiata pine logs')
+                    # 或 规则 2：正则边界匹配 (确保不是误碰单词中的一部分)
+                    if phrase in db_entry_clean or db_entry_clean in phrase:
+                        if cat == "Softwood":
+                            found_soft.append(phrase)
+                        else:
+                            found_hard.append(phrase)
+                        match_found = True
+                        break
+                if match_found: break
             if match_found: break
         
         if not match_found:
-            unmatched_species.append(kw)
+            # 如果短语没直接中，尝试把短语拆开，但过滤掉无意义的颜色词/方位词
+            sub_words = phrase.split()
+            ignore_list = ["red", "white", "grey", "gray", "yellow", "blue", "western", "eastern", "southern", "northern", "mountain", "alpine"]
+            significant_words = [w for w in sub_words if w not in ignore_list and len(w) > 2]
+            
+            sub_match = False
+            for w in significant_words:
+                for reg_name, region in WOOD_DB.items():
+                    for cat in ["Softwood", "Hardwood"]:
+                        for db_entry in region.get(cat, []):
+                            if w in db_entry.lower():
+                                if cat == "Softwood":
+                                    found_soft.append(w)
+                                else:
+                                    found_hard.append(w)
+                                sub_match = True
+                                break
+                        if sub_match: break
+                    if sub_match: break
+                if sub_match: break
+            
+            if not sub_match:
+                unmatched_phrases.append(phrase)
 
     # 对于没匹配到的品种，启动 AI “实时补课”
     live_discovery_notes = []
-    if unmatched_species:
-        print(f"    [AI-Learning] Database miss for: {unmatched_species}. Triggering live lookup...")
-        for unknown in unmatched_species:
+    if unmatched_phrases:
+        print(f"    [AI-Learning] Database miss for: {unmatched_phrases}. Triggering live lookup...")
+        for unknown in unmatched_phrases:
             try:
                 # 执行一次微小的联网判定
                 completion = client.models.generate_content(
@@ -258,38 +283,63 @@ STRATEGY:
         }
 
 
-def run_staff_test(company_name: str, model_name: str) -> dict:
-    print(f"    [AI-Sniper] Performing Hybrid Penetration Research for: {company_name}...")
+def run_staff_test(company_name: str, model_name: str) -> list[dict]:
+    print(f"    [AI-Sniper] Launching Exhaustive Personnel Penetration for: {company_name}...")
     
-    # 混合狙击策略：兼顾通用网页、定点报告、以及专业名录
-    hunting_prompt = f"""
-You are a High-Precision Executive Sniper. Your goal is to find core management and key operational leaders for: {company_name}.
+    # 定义多个搜寻维度，确保“业务层”不被漏掉
+    search_passes = [
+        {
+            "label": "Commercial Layer (Sales/Export/Logistics)",
+            "query": f'"{company_name}" sales export logistics team team list contact email'
+        },
+        {
+            "label": "Industrial Layer (Mill/Ops/Procurement)",
+            "query": f'"{company_name}" mill manager operations production procurement supply chain'
+        },
+        {
+            "label": "Strategic Layer (C-Level/Directors)",
+            "query": f'"{company_name}" directors C-level management board members annual report'
+        }
+    ]
+    
+    all_raw_intel = []
+    
+    # 逐次渗透搜寻
+    for pas in search_passes:
+        print(f"      [Pass] Hunting {pas['label']}...")
+        hunting_prompt = f"""
+You are a High-Precision Executive Sniper. Your goal is to EXHAUSTIVELY find personnel for: {company_name}.
+Current Target Layer: {pas['label']}
+Search Query to analyze: {pas['query']}
 
-PRIORITY ROLES:
-1. Mill Managers / Operations Managers (Directly benefit from scaling speed).
-2. Log Procurement / Supply Chain Managers (Deep interest in log measurement accuracy).
-3. Production Managers / Site Managers.
-4. Directors / CEO (Decision makers).
-
-STRATEGY:
-- Pass 1: PDF DOCUMENT INTELLIGENCE. Search: filetype:pdf "{company_name}" "Annual Report" OR "Sustainability Report" OR "Company Profile". 
-- Pass 2: DIRECTORY SNIPING. Search: site:zoominfo.com/p/ OR site:linkedin.com/company "{company_name}" manager.
-- Pass 3: GENERAL GOOGLE SEARCH. Search: "{company_name}" management team roles.
-
-NOTE ON DATA AGE: If you find an official report from 2022-2024, extract those names even if they aren't on LinkedIn. Label them as '[Report Source]'.
+INSTRUCTIONS:
+1. Extract EVERY professional you find in the search snippets or linked reports.
+2. For each person, try to identify their exact email. 
+3. If you find an email pattern (e.g., jsmith@company.com), apply it to others.
+4. Focus on roles that matter to 3D Sawmill Automation: Sales (Export), Mill Management, Logistics, and Procurement.
 """
-    
-    def _search_pass():
-        return client.models.generate_content(
-            model=model_name,
-            contents=[hunting_prompt],
-            config=types.GenerateContentConfig(
-                system_instruction=config.PROMPT_STAFF_RESEARCH,
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.3
-            ),
-        )
+        try:
+            res = client.models.generate_content(
+                model=model_name,
+                contents=[hunting_prompt],
+                config=types.GenerateContentConfig(
+                    system_instruction=config.PROMPT_STAFF_RESEARCH,
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.3
+                ),
+            )
+            if res.text:
+                all_raw_intel.append(res.text)
+        except Exception as e:
+            print(f"      [!] Pass failed: {pas['label']} - {e}")
 
+    if not all_raw_intel:
+        return []
+
+    # 汇总整合 & 格式化
+    print(f"    [AI-Sniper] Consolidating and deduplicating intelligence...")
+    combined_text = "\n\n--- NEW PASS RESULT ---\n".join(all_raw_intel)
+    
     def _format_pass(research_text):
         return client.models.generate_content(
             model=model_name,
@@ -303,15 +353,22 @@ NOTE ON DATA AGE: If you find an official report from 2022-2024, extract those n
         )
 
     try:
-        # Pass 1: Grounded Sniper Research
-        search_res = retry_ai_call(_search_pass)
-        research_text = search_res.text if search_res.text else "No staff research found."
+        json_res = retry_ai_call(_format_pass, combined_text[:25000]) # Handle larger input
+        members = json.loads(json_res.text).get("members", [])
         
-        # Pass 2: JSON Formatting
-        json_res = retry_ai_call(_format_pass, research_text[:15000])
-        return json.loads(json_res.text).get("members", [])
+        # 简单的基于姓名的去重
+        unique_members = []
+        seen_names = set()
+        for m in members:
+            name_clean = m.get("name", "").strip().lower()
+            if name_clean and name_clean not in seen_names:
+                unique_members.append(m)
+                seen_names.add(name_clean)
+        
+        print(f"    [AI-Sniper] Success: Found {len(unique_members)} unique personnel.")
+        return unique_members
     except Exception as e:
-        print(f"    [!] Error in staff sniper for {company_name}: {e}")
+        print(f"    [!] Error during staff consolidation for {company_name}: {e}")
         return []
 
 def run_direct_extraction(raw_text: str) -> list[dict]:

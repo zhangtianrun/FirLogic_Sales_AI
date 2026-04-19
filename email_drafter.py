@@ -4,18 +4,16 @@ import pandas as pd
 from agents import ai_processor
 
 def build_email_template(company, salutation, last_name, location):
-    subject = f"A new log scaling technology from University of Waterloo — Up to 80% cost reduction for {company}"
+    subject = f"A new log scaling technology from Ontario Canada — Up to 80% cost reduction for {company}"
     body = f"""Dear {salutation} {last_name},
 
-{company}'s long-standing commitment to sustainable forestry and operational excellence in {location} is truly impressive.
+{company}’s long-standing commitment to sustainable forestry and operational excellence is truly impressive.
 
-I am writing to you because I believe Fir Logic can greatly support you by modernizing your log scaling process and removing one of the industry's biggest bottlenecks.
+My name is Terry Zhang, and I am the General Manager of Fir Logic, a Canadian technology company established at the University of Waterloo and stationed in Ontario. I am reaching out today because I believe we can greatly support you by modernizing your log scaling process and removing one of the industry's biggest bottlenecks.
 
-Fir Logic is a venture born out of the University of Waterloo in Canada, specializing in a patented portable 3D vision-based AI scaling solution. Our technology automates the entire timber measurement process, removing the reliance on skilled log scalers while delivering objective, repeatable results. In field conditions, our portable system has proven to be significantly faster than traditional methods, with the potential to reduce operational scaling costs by up to 80%. 
+Fir Logic specializes in a patented 3D vision-based portable AI scaling solution that removes the reliance on manual scaling, delivers objective results, and reduces traditional operational costs by up to 80%. For more details, please review the attached document.
 
-With over 20 global customers, our solution is proven, mature, and ready to deploy.
-
-For more information on our projects and transparent pricing, please visit our website: https://www.firlogic.com/ 
+For more information on our projects and transparent pricing, please visit our website: https://www.firlogic.com/pricing 
 
 If you have any questions or would like to learn more, please don't hesitate to contact us. If you are interested, we would be delighted to collaborate with you.
 
