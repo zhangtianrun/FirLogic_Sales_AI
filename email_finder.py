@@ -4,6 +4,7 @@ import time
 import random
 import re
 import pandas as pd
+import config
 from DrissionPage import ChromiumPage, ChromiumOptions
 
 def get_args():
@@ -12,9 +13,42 @@ def get_args():
     parser.add_argument('--output', type=str, default="~/Downloads/FirLogic_Sales_Intel_Report_Step3.xlsx", help="生成 Step 3 的输出文件路径")
     return parser.parse_args()
 
+def search_for_domain(company_name, client):
+    """如果Excel里没有网站，主动去搜一下官网域名 (侦探增强版)"""
+    import config
+    print(f"      [🔎] 侦探模式：正在为 {company_name} 深度定位官网/母公司域名...")
+    try:
+        from google.genai import types
+        prompt = f"""
+Identify the authoritative official web domain for: {company_name}.
+CONTEXT: 
+- Many forestry companies are divisions of larger groups (e.g., "Probyn Log" uses "probyngroup.ca" or "probyn.com").
+- Look for the domain in the top search results, including official sites, industry directories (Naturally Wood, BC Forest), or LinkedIn company pages.
+- Even if the domain name doesn't match the company name perfectly, return the domain used for their official business communications.
+
+RETURN ONLY THE DOMAIN (e.g., company.com). If no domain is found, return "unknown".
+"""
+        res = client.models.generate_content(
+            model=config.MODEL_DETECTIVE, # 升级为 2.5 Flash 侦探模型
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.2
+            )
+        )
+        domain = res.text.strip().lower()
+        # 简单清洗
+        for prefix in ["https://", "http://", "www."]:
+            if domain.startswith(prefix):
+                 domain = domain[len(prefix):]
+        return domain.split('/')[0].strip()
+    except Exception as e:
+        print(f"      [!] 搜网失败: {e}")
+        return None
+
 def clean_domain(url):
     """提取干净的域名"""
-    if pd.isna(url) or not str(url).strip():
+    if not url or pd.isna(url) or not str(url).strip() or str(url).lower() == 'nan':
         return None
     url = str(url).strip().lower()
     if url == 'unknown':
@@ -48,11 +82,18 @@ def main():
         return
         
     try:
+        # 读取时强制要求处理合并单元格的问题
         df = pd.read_excel(input_file, sheet_name="重点关注_软木及混合")
+        
+        # 核心修复：确保每一行都有公司和网站的上下文
         if '公司名称' in df.columns:
             df['公司名称'] = df['公司名称'].ffill()
         if '网站' in df.columns:
             df['网站'] = df['网站'].ffill()
+            
+        # 预清洗：删除没有任何人员姓名的行
+        df = df[df['高管姓名'].notna() & (df['高管姓名'].str.strip() != "")]
+        
     except Exception as e:
         print(f"读取Excel失败: {e}")
         return
@@ -78,9 +119,13 @@ def main():
         print(f"\n\033[91m[!] 启动浏览器失败！可能没有找到 Chrome 浏览器。报错: {e}\033[0m")
         return
 
+    # 初始化 Gemini 客户端用于潜在的域名搜索
+    from google import genai
+    client = genai.Client(api_key=config.GEMINI_API_KEY)
+
     print("[*] 导航至 Mailmeteor 首页...")
     page.get('https://mailmeteor.com/tools/email-finder')
-    time.sleep(3) # 给它留够时间加载初步的反爬 JS
+    time.sleep(3) 
     
     for idx, row in df.iterrows():
         company = str(row.get('公司名称', '')).strip()
@@ -90,6 +135,10 @@ def main():
         
         domain = clean_domain(website)
         
+        # 核心逻辑：如果域名为空，实时联网搜寻
+        if not domain:
+            domain = search_for_domain(company, client)
+            
         base_info = {
             '公司名称': company,
             '高管姓名': name,
@@ -97,7 +146,11 @@ def main():
             '邮件联系方式': ""
         }
 
-        is_valid = True
+        if not name or not domain:
+            print(f"[!] 跳过: {name} @ {domain if domain else '未知'} (缺少关键信息)")
+            continue
+            
+        print(f"[>] 模拟查找: {name} @ {domain} ... ")
         if not domain:
             is_valid = False
         elif not name or name.lower() == 'unknown' or len(name.split()) < 2:

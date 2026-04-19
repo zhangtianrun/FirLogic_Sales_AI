@@ -286,11 +286,9 @@ STRATEGY:
 def run_staff_test(company_name: str, model_name: str) -> list[dict]:
     print(f"    [AI-Sniper 2.0] Direct All-Source Recon for: {company_name}...")
     
-    # 综合布尔指令：全层级覆盖，无站点限制
+    # 综合布尔指令：全层级覆盖 + 强制锁定 ZoomInfo
     combined_query = (
-        f'"{company_name}" AND ('
-        '"Owner" OR "CEO" OR "President" OR "Founder" OR "Mill Manager" OR "Plant Manager" OR '
-        '"Procurement" OR "Log Buyer" OR "Sales" OR "Export")'
+        f'"{company_name}" (site:zoominfo.com OR "Owner" OR "CEO" OR "President" OR "Founder" OR "Mill Manager" OR "Plant Manager" OR "Procurement")'
     )
     
     def _execute_recon(query):
@@ -299,8 +297,8 @@ You are a High-Precision Executive Sniper. EXHAUSTIVELY find personnel for: {com
 Current Strategy: {query}
 
 CRITICAL RULES:
-1. LEADERS FIRST: Prioritize identifying the Owner, CEO, or President by name.
-2. NO SOURCE LIMITS: Search the WHOLE PUBLIC WEB. Look for news, reports, and directories.
+1. MANDATORY CHECK: If a ZoomInfo link (zoominfo.com) appears in search results, you MUST analyze its personnel list first. It is the primary evidentiary source.
+2. LEADERS FIRST: Prioritize identifying the Owner, CEO, or President by name.
 3. PERSONAL ONLY: Extract Name, Title, and Department.
 4. MAJOR WARNING: DO NOT LOOK FOR EMAILS. DO NOT extract or infer any email addresses.
 5. CONTEXTUAL EXTRACTION: Parse snippets for "Name, Role at {company_name}" patterns.
