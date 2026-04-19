@@ -6,7 +6,7 @@ import config
 
 def flatten_results(results_list):
     flat_list = []
-    base_keys = ["公司名称", "网站", "木材类别", "人员数量", "厂数量", "业务分类", "具体品种", "自动化程度", "竞品设备", "理由"]
+    base_keys = ["公司名称", "网站", "木材类别", "厂数量", "业务分类", "具体品种", "自动化程度", "竞品设备", "理由"]
     for item in results_list:
         staff_list = item.pop("staff_list", [])
         if not staff_list:
@@ -14,9 +14,7 @@ def flatten_results(results_list):
             flat_item["高管姓名"] = "未找到"
             flat_item["高管职务"] = "未找到"
             flat_item["所属部门"] = "未找到"
-            flat_item["高管邮箱"] = "未找到"
             flat_item["职责描述"] = "未找到"
-            flat_item["销售分析"] = "未找到"
             flat_item["情报来源链接"] = "未找到"
             flat_list.append(flat_item)
         else:
@@ -30,9 +28,7 @@ def flatten_results(results_list):
                 flat_item["高管姓名"] = staff.get("name", "")
                 flat_item["高管职务"] = staff.get("title", "")
                 flat_item["所属部门"] = staff.get("department", "")
-                flat_item["高管邮箱"] = staff.get("email", "")
                 flat_item["职责描述"] = staff.get("role_description", "")
-                flat_item["销售分析"] = staff.get("relevance_analysis", "")
                 flat_item["情报来源链接"] = staff.get("source_link", "")
                 flat_list.append(flat_item)
     return flat_list
@@ -79,10 +75,9 @@ def process_and_export(input_path, output_path):
     
     df_softwood = pd.DataFrame(flatten_results(target_softwood)) if target_softwood else pd.DataFrame()
     
-    # Updated Column Order (Chinese)
     cols_target = [
-        "公司名称", "网站", "木材类别", "人员数量", "厂数量", 
-        "高管姓名", "高管职务", "所属部门", "高管邮箱", "职责描述", "销售分析", "情报来源链接",
+        "公司名称", "网站", "木材类别", "厂数量", 
+        "高管姓名", "高管职务", "所属部门", "职责描述", "情报来源链接",
         "业务分类", "具体品种", "自动化程度", "竞品设备", "理由"
     ]
     
@@ -114,7 +109,7 @@ def process_and_export(input_path, output_path):
                         worksheet.column_dimensions[col_letter].width = 25
                 
                 # Specific wider columns
-                for hdr in ["理由", "自动化程度", "竞品设备", "具体品种", "职责描述", "销售分析"]:
+                for hdr in ["理由", "自动化程度", "竞品设备", "具体品种", "职责描述"]:
                     if hdr in header_map:
                         worksheet.column_dimensions[header_map[hdr]].width = 45
                 for hdr in ["情报来源链接"]:
@@ -145,7 +140,7 @@ def process_and_export(input_path, output_path):
                                 start_row += 1
                                 
                 # Enable word wrap for these columns explicitly
-                for col_name in ["职责描述", "销售分析", "高管姓名", "高管职务"]:
+                for col_name in ["职责描述", "高管姓名", "高管职务"]:
                     if col_name in header_map:
                         col_letter = header_map[col_name]
                         for row in range(2, worksheet.max_row + 1):

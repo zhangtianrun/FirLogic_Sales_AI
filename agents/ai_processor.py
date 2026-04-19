@@ -284,32 +284,26 @@ STRATEGY:
 
 
 def run_staff_test(company_name: str, model_name: str) -> list[dict]:
-    print(f"    [AI-Sniper 2.0] Aggressive Recon for: {company_name}...")
+    print(f"    [AI-Sniper 2.0] Direct All-Source Recon for: {company_name}...")
     
-    # 波次 1：高管锚定 (Leadership Anchor) - 专注 Owner, CEO, President
-    leadership_query = f'"{company_name}" AND ("Owner" OR "CEO" OR "President" OR "Founder" OR "Managing Director" OR "Principal")'
-    
-    # 波次 2：全域渗透 (Ops Recon) - 使用我们的 28 个林业职能词库
-    ops_query = (
+    # 综合布尔指令：全层级覆盖，无站点限制
+    combined_query = (
         f'"{company_name}" AND ('
-        '"Mill Manager" OR "Plant Manager" OR "Operations Manager" OR "Site Manager" OR "Production Manager" OR "Facility Manager" OR "General Manager" OR '
-        '"Log Buyer" OR "Procurement Manager" OR "Wood Procurement" OR "Fibre Supply" OR "Fiber Supply" OR "Forestry Manager" OR "Woodlands Manager" OR '
-        '"Chief Scaler" OR "Scaling Supervisor" OR "Quality Control Manager" OR "QC Manager" OR "Optimization Manager" OR "Process Improvement" OR "Innovation Director" OR '
-        '"Sales" OR "Export")'
+        '"Owner" OR "CEO" OR "President" OR "Founder" OR "Mill Manager" OR "Plant Manager" OR '
+        '"Procurement" OR "Log Buyer" OR "Sales" OR "Export")'
     )
     
-    def _execute_recon(query, label):
-        print(f"      [Scan] {label}...")
+    def _execute_recon(query):
         prompt = f"""
-You are a High-Precision Executive Sniper. Your goal is to EXHAUSTIVELY find personnel for: {company_name}.
+You are a High-Precision Executive Sniper. EXHAUSTIVELY find personnel for: {company_name}.
 Current Strategy: {query}
 
 CRITICAL RULES:
-1. NO SOURCE LIMITS: Search the WHOLE PUBLIC WEB. Do not restrict to LinkedIn. Check news, directories, and industry reports.
-2. CONTEXTUAL EXTRACTION: Look for patterns like "John Doe, owner of {company_name}" in snippets.
-3. CAPTURE ALL ROLES: Extract names, titles, and departments.
-4. EVIDENCE-BASED EMAILS: Capture personal emails if explicitly found. Also capture info@, sales@, or office@ as backups.
-5. NO GUESSING: Do not infer email patterns. Only use what is found in text.
+1. LEADERS FIRST: Prioritize identifying the Owner, CEO, or President by name.
+2. NO SOURCE LIMITS: Search the WHOLE PUBLIC WEB. Look for news, reports, and directories.
+3. PERSONAL ONLY: Extract Name, Title, and Department.
+4. MAJOR WARNING: DO NOT LOOK FOR EMAILS. DO NOT extract or infer any email addresses.
+5. CONTEXTUAL EXTRACTION: Parse snippets for "Name, Role at {company_name}" patterns.
 """
         return retry_ai_call(client.models.generate_content,
             model=model_name,
@@ -326,7 +320,7 @@ CRITICAL RULES:
             model=model_name,
             contents=[research_text],
             config=types.GenerateContentConfig(
-                system_instruction=config.PROMPT_STAFF_FORMATTER,
+                system_instruction="Analyze the research text and return a structured JSON list of personnel. ONLY include Name, Title, and Department.",
                 response_mime_type="application/json",
                 response_schema=StaffIntelligence,
                 temperature=0.1
@@ -334,17 +328,6 @@ CRITICAL RULES:
         )
 
     try:
-        results_pool = []
-        
-        # 轮次 1：抓大鱼 (Owners/CEOs)
-        res_lead = _execute_recon(leadership_query, "Leadership Anchor")
-        if res_lead.text: results_pool.append(res_lead.text)
-        
-        # 轮次 2：扫全员 (Management/Ops/Sales)
-        res_ops = _execute_recon(ops_query, "Total Operations Recon")
-        if res_ops.text: results_pool.append(res_ops.text)
-        
-        # 汇总合并
         research_text = "\n\n".join(results_pool) if results_pool else "No staff found."
         
         # 格式化输出 (加固 JSON 解析，增加缓冲区防止长名单截断)
