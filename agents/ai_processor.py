@@ -8,6 +8,16 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 import json
+import re
+
+# Load Wood Species Master Database
+SPECIES_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "resources", "wood_species_master.json")
+try:
+    with open(SPECIES_DB_PATH, "r", encoding="utf-8") as f:
+        WOOD_DB = json.load(f)
+except Exception as e:
+    print(f"    [!] Warning: Could not load wood species database: {e}")
+    WOOD_DB = {}
 
 client = genai.Client(api_key=config.GEMINI_API_KEY)
 
@@ -67,6 +77,59 @@ def retry_ai_call(func, *args, **kwargs):
                 continue
             raise e
 
+def classify_wood_category(found_species_str: str) -> tuple[str, str]:
+    """
+    根据本地数据库对搜到的树种字符串进行分类。
+    返回: (category, rationale)
+    """
+    if not found_species_str or "未知" in found_species_str or "未查明" in found_species_str:
+        return "未知", "未搜寻到具体树种资料。"
+
+    # 将搜到的树种串拆解为关键词 (支持中文、英文、逗号、空格、顿号)
+    raw_keywords = re.split(r'[,，、\s/]+', found_species_str)
+    keywords = [k.strip().lower() for k in raw_keywords if k.strip()]
+    
+    found_soft = []
+    found_hard = []
+    matched_any = False
+
+    # 深度匹配逻辑
+    def is_match(db_entry_text, keyword):
+        # 简单包含关系匹配
+        return keyword in db_entry_text.lower() or db_entry_text.lower() in keyword
+
+    for kw in keywords:
+        match_found = False
+        # 检查每个区域 (AU, CA, Generic)
+        for region in WOOD_DB.values():
+            # 检查软木库
+            for s in region.get("Softwood", []):
+                if is_match(s, kw):
+                    found_soft.append(kw)
+                    match_found = True
+                    break
+            if match_found: break
+            # 检查硬木库
+            for h in region.get("Hardwood", []):
+                if is_match(h, kw):
+                    found_hard.append(kw)
+                    match_found = True
+                    break
+            if match_found: break
+        
+        if match_found:
+            matched_any = True
+
+    if not matched_any:
+        return "未知", f"搜寻到的树种 ({found_species_str}) 不在预设数据库中，需人工核对。"
+
+    if found_soft and found_hard:
+        return "混合", f"检测到混合资源：软木({', '.join(set(found_soft))}) & 硬木({', '.join(set(found_hard))})。"
+    elif found_soft:
+        return "软木", f"确认为纯软木作业：检测到 {', '.join(set(found_soft))}。"
+    else:
+        return "硬木", f"确认为纯硬木作业：检测到 {', '.join(set(found_hard))}。"
+
 def extract_entities(raw_text: str) -> list[str]:
     print("    [AI] Extracting companies from text...")
     def _call():
@@ -90,18 +153,17 @@ def extract_entities(raw_text: str) -> list[str]:
 
 def run_grounded_research(company_name: str) -> dict:
     import time
-    print(f"    [AI-Hunter] Launching Multi-Dimensional Hunt for: {company_name}")
+    print(f"    [AI-Hunter] Launching Global Domain & Intelligence Hunt for: {company_name}")
     
-    # 核心指令：要求 AI 采用您提供的三层逻辑（SEO、附件逆流、社交跳板）
+    # 阶段 1：全球化搜索指令
     hunting_prompt = f"""
-You are a High-Precision Sales Intelligence Hunter. Your mission is to find the OFFICIAL CORPORATE DOMAIN for: {company_name} (Expected Industry: Timber/Sawmill/Wood products in Australia).
+You are a High-Precision Sales Intelligence Hunter. Your mission is to find core facts for: {company_name} (Focus: Timber/Sawmill industry).
 
 STRATEGY:
-1. SEO HEURISTICS: Search for the company name combined with industry terms like 'sawmill', 'timber', 'lumber' AND region 'Australia'. 
-2. REVERSE ENGINEERING: Look for email addresses in search snippets (e.g., info@company.com.au). If found, REVERSE THE DOMAIN.
-3. SOCIAL/DIRECTORY ANCHORS: Prioritize results from ZoomInfo, LinkedIn Company Pages, and Yellow Pages Australia. Extract the website link from these profiles.
-
-Output all research notes including official site URL, employee scale, and factory details.
+1. FIND DOMAIN: Search for the company name globally. Prioritize .com, .ca, .com.au and ZoomInfo. 
+2. EXTRACT SPECIES: Look for the specific types of wood they process (e.g. Pine, Spruce, Douglas Fir, Blackbutt, Ironbark). List the specific names.
+3. DETECT ASSETS: Look for keywords like 'sawmill', 'log scaling', 'automation', 'kilns'.
+4. CONFIRM ORIGIN: Determine if they are primarily in Australia, Canada, USA, or elsewhere.
 """
     
     def _search_pass():
@@ -132,15 +194,26 @@ Output all research notes including official site URL, employee scale, and facto
         search_res = retry_ai_call(_search_pass)
         research_text = search_res.text if search_res.text else "No research found."
         
-        # Pass 2: JSON Formatting
+        # Pass 2: JSON Formatting (Initial extraction)
         json_res = retry_ai_call(_format_pass, research_text[:15000])
-        return json.loads(json_res.text)
+        final_data = json.loads(json_res.text)
+
+        # Pass 3: Python-based Species Classification Override
+        # 这个步骤强制使用本地数据库判定分类，解决 AI 不稳定的问题
+        species_str = final_data.get("wood_species", "")
+        category, rationale = classify_wood_category(species_str)
+        
+        final_data["wood_category"] = category
+        final_data["rationale"] = f"{rationale} | 原始判断: {final_data.get('rationale', '')}"
+        
+        return final_data
     except Exception as e:
         print(f"    [!] Final error in research for {company_name}: {e}")
         return {
             "official_website": "Error",
             "decision": "Review",
             "wood_species": "错误",
+            "wood_category": "未知",
             "employee_count": "错误",
             "factory_count": "错误",
             "log_scanner_intel": "错误",
@@ -148,6 +221,7 @@ Output all research notes including official site URL, employee scale, and facto
             "rationale": str(e),
             "discovery_source": "None"
         }
+
 
 def run_staff_test(company_name: str, model_name: str) -> dict:
     print(f"    [AI-Sniper] Performing Hybrid Penetration Research for: {company_name}...")

@@ -1,0 +1,90 @@
+{
+  "Australia": {
+    "Softwood": [
+      "Radiata Pine (辐射松)",
+      "White Cypress (澳洲白柏)",
+      "Slash Pine (湿地松)",
+      "Caribbean Pine (加勒比松)",
+      "Hoop Pine (南洋杉)",
+      "Queensland Kauri (昆士兰贝壳杉)",
+      "Cypress Pine (柏松)",
+      "Douglas Fir (道格拉斯冷杉/俄勒冈木)"
+    ],
+    "Hardwood": [
+      "Blackbutt (黑利尤/黑屁股木)",
+      "Spotted Gum (斑点桉)",
+      "Jarrah (红桉)",
+      "Karri (凯里木)",
+      "Sydney Blue Gum (悉尼蓝桉)",
+      "Ironbark (铁木/铁皮桉)",
+      "Silvertop Ash (银顶木)",
+      "Alpine Ash (高山白蜡/高山灰)",
+      "Mountain Ash (山地白蜡/山地灰)",
+      "Messmate (弥生木/枯案)",
+      "Marri (红柳桉)",
+      "Tallowwood (牛油土木)",
+      "Turpentine (松节油木)",
+      "Merbau (波罗格/梅宝)",
+      "Blackwood (黑木相思)",
+      "Red Mahogany (红桃花心木)",
+      "Grey Box (灰黄杨)",
+      "Yellow Box (黄黄杨)",
+      "Forest Red Gum (森林红桉)",
+      "River Red Gum (河岸红桉)",
+      "Rose Gum (玫瑰桉)",
+      "Grey Gum (灰桉)",
+      "Flooded Gum (淡红桉)",
+      "Brush Box (红刷木)",
+      "Victorian Ash (维多利亚灰)",
+      "Tasmanian Oak (塔斯马尼亚橡木)"
+    ]
+  },
+  "Canada": {
+    "Softwood": [
+      "White Spruce (白云杉)",
+      "Black Spruce (黑云杉)",
+      "Red Spruce (红云杉)",
+      "Sitka Spruce (西特卡云杉)",
+      "Engelmann Spruce (恩氏云杉)",
+      "Lodgepole Pine (扭叶松/海岸松)",
+      "Jack Pine (班克松/短期松)",
+      "Eastern White Pine (东部白松)",
+      "Red Pine (红松)",
+      "Western White Pine (西部白松)",
+      "Ponderosa Pine (西黄松)",
+      "Subalpine Fir (高山冷杉)",
+      "Balsam Fir (香脂冷杉)",
+      "Amabilis Fir (太平洋银冷杉)",
+      "Douglas Fir (花旗松/道格拉斯冷杉)",
+      "Western Larch (西部落叶松)",
+      "Tamarack (落叶松)",
+      "Western Hemlock (西部铁杉)",
+      "Eastern Hemlock (东部铁杉)",
+      "Western Red Cedar (西部红柏/红雪松)",
+      "Yellow Cedar (黄杉/阿拉斯加黄杉)",
+      "Eastern White Cedar (东部白柏)",
+      "SPF (云杉-松-冷杉组合)"
+    ],
+    "Hardwood": [
+      "Trembling Aspen (震颤白杨)",
+      "Balsam Poplar (香脂杨)",
+      "Black Cottonwood (黑棉木)",
+      "Sugar Maple (糖枫)",
+      "Red Maple (红枫)",
+      "Bigleaf Maple (大叶枫)",
+      "Yellow Birch (黄桦)",
+      "Paper Birch (纸皮桦/白桦)",
+      "Red Oak (红橡)",
+      "White Oak (白橡)",
+      "American Beech (美洲山毛榉)",
+      "Red Alder (红桤木)",
+      "White Ash (白蜡木)",
+      "Black Walnut (黑胡桃)",
+      "American Basswood (美洲椴木)"
+    ]
+  },
+  "Generic": {
+    "Softwood": ["Pine (松木)", "Spruce (云杉)", "Fir (冷杉)", "Cedar (雪松/柏木)", "Larch (落叶松)", "Hemlock (铁杉)", "Conifer (针叶木)"],
+    "Hardwood": ["Oak (橡木)", "Maple (枫木)", "Birch (桦木)", "Ash (白蜡木)", "Eucalyptus (桉树)", "Poplar (杨木)", "Walnut (胡桃木)", "Mahogany (桃花心木)", "Teak (柚木)"]
+  }
+}
