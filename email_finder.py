@@ -14,36 +14,57 @@ def get_args():
     return parser.parse_args()
 
 def search_for_domain(company_name, client):
-    """如果Excel里没有网站，主动去搜一下官网域名 (侦探增强版)"""
+    """如果Excel里没有网站，主动去搜一下官网域名 (全透明调试版)"""
     import config
-    print(f"      [🔎] 侦探模式：正在为 {company_name} 深度定位官网/母公司域名...")
+    print(f"\n      [🔎] 侦探模式：正在为 {company_name} 进行全网溯源...")
     try:
         from google.genai import types
+        # 故意放开限制，让 AI 先解释，再给结果
         prompt = f"""
-Identify the authoritative official web domain for: {company_name}.
-CONTEXT: 
-- Many forestry companies are divisions of larger groups (e.g., "Probyn Log" uses "probyngroup.ca" or "probyn.com").
-- Look for the domain in the top search results, including official sites, industry directories (Naturally Wood, BC Forest), or LinkedIn company pages.
-- Even if the domain name doesn't match the company name perfectly, return the domain used for their official business communications.
+TASK: Identify the authoritative official web domain for: {company_name}.
+CONSIDERATIONS: 
+- Parent/Subsidiary relationships (e.g. Probyn Log -> probyngroup.ca).
+- Industry directories like Naturally Wood, ZoomInfo, or LinkedIn.
+- Official PDF reports or news mentions if the site is hard to find.
 
-RETURN ONLY THE DOMAIN (e.g., company.com). If no domain is found, return "unknown".
+FORMAT:
+Reasoning: <Your short detective logic here>
+Domain: <The final domain.com only>
+
+If no domain is found, output "unknown".
 """
         res = client.models.generate_content(
-            model=config.MODEL_DETECTIVE, # 升级为 2.5 Flash 侦探模型
+            model=config.MODEL_DETECTIVE, 
             contents=[prompt],
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.2
+                temperature=0.1
             )
         )
-        domain = res.text.strip().lower()
-        # 简单清洗
+        
+        full_text = res.text.strip()
+        # 调试日志：打印 AI 的思考过程
+        print(f"      [AI 思维链]:\n      {full_text.split('Domain:')[0].strip()}")
+        
+        if "Domain:" in full_text:
+            domain = full_text.split("Domain:")[1].strip().lower()
+        else:
+            domain = full_text.lower()
+
+        # 过滤冗余字符
+        domain = domain.split("\n")[0].strip()
         for prefix in ["https://", "http://", "www."]:
             if domain.startswith(prefix):
                  domain = domain[len(prefix):]
-        return domain.split('/')[0].strip()
+        domain = domain.split('/')[0].strip()
+        
+        if domain == "unknown" or len(domain) < 3:
+            return None
+            
+        print(f"      [✓] 锁定域名: {domain}")
+        return domain
     except Exception as e:
-        print(f"      [!] 搜网失败: {e}")
+        print(f"      [!] 搜网过程出错: {e}")
         return None
 
 def clean_domain(url):
@@ -146,18 +167,16 @@ def main():
             '邮件联系方式': ""
         }
 
-        if not name or not domain:
-            print(f"[!] 跳过: {name} @ {domain if domain else '未知'} (缺少关键信息)")
-            continue
-            
-        print(f"[>] 模拟查找: {name} @ {domain} ... ")
-        if not domain:
+        # 验证人员信息的合法性
+        is_valid = True
+        if not name or name.lower() == 'unknown' or len(name.split()) < 2:
+            print(f"[-] 跳过: {name} (姓名不完整)")
             is_valid = False
-        elif not name or name.lower() == 'unknown' or len(name.split()) < 2:
+        if not domain or domain.lower() == 'unknown':
+            print(f"[!] 跳过: {name} @ 未知域名 (缺少关键信息)")
             is_valid = False
 
         if not is_valid:
-            print(f"[-] 跳过: {name} @ {company} (信息不完整)")
             base_info['邮件联系方式'] = '缺乏域名或全名'
             missing_info.append(base_info)
             continue

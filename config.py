@@ -9,7 +9,7 @@ MODEL_SCOUT = "gemini-2.5-flash-lite"
 MODEL_DETECTIVE = "gemini-2.5-flash"
 
 # Primary model for the first feature
-MODEL_NAME = MODEL_SCOUT
+MODEL_NAME = MODEL_DETECTIVE
 
 PROMPT_EXTRACT_ENTITIES = """
 You are a data cleaning expert. Your objective is to extract ONLY the names of companies, factories, or commercial entities from the following potentially noisy text.

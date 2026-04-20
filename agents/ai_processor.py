@@ -215,27 +215,37 @@ def run_grounded_research(company_name: str) -> dict:
     import time
     print(f"    [AI-Hunter] Launching Global Domain & Intelligence Hunt for: {company_name}")
     
-    # 阶段 1：全球化搜索指令
+    # 阶段 1：全球化搜索指令 (侦探增强版)
     hunting_prompt = f"""
-You are a High-Precision Sales Intelligence Hunter. Your mission is to find core facts for: {company_name} (Focus: Timber/Sawmill industry).
-
+Identify the authoritative official web domain and core facts for: {company_name}.
 STRATEGY:
-1. FIND DOMAIN: Search for the company name globally. Prioritize .com, .ca, .com.au and ZoomInfo. 
-2. EXTRACT SPECIES: Look for the specific types of wood they process (e.g. Pine, Spruce, Douglas Fir, Blackbutt, Ironbark). List the specific names.
-3. DETECT ASSETS: Look for keywords like 'sawmill', 'log scaling', 'automation', 'kilns'.
-4. CONFIRM ORIGIN: Determine if they are primarily in Australia, Canada, USA, or elsewhere.
+1. FIND DOMAIN: The company name may differ from its web domain (e.g. "Probyn Log" -> "probyngroup.ca"). 
+   Look for parent groups, branch affiliations, or subsidiary redirects.
+   PRIORITIZE: Official .com/.ca sites, Naturally Wood, LinkedIn, ZoomInfo snippets.
+2. EXTRACT SPECIES: List specific trees (Pine, Spruce, Fir, SPF, etc.).
+3. DETECT ASSETS: Confirm if they have a sawmill, kiln, or manufacturing facility.
+4. LOCATION: Confirm their primary operating region (e.g. BC, Alberta, Washington).
+
+FORMAT YOUR BRAIN:
+Start with a short "Logic: <your reasoning>" followed by the findings.
 """
     
     def _search_pass():
-        return client.models.generate_content(
-            model=config.MODEL_NAME,
+        res = client.models.generate_content(
+            model=config.MODEL_NAME, # 升级后的 2.5 Flash
             contents=[hunting_prompt],
             config=types.GenerateContentConfig(
                 system_instruction=config.PROMPT_DEEP_RESEARCH,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.3
+                temperature=0.2
             ),
         )
+        # 实时打印 AI 的搜网思维链
+        if res.text:
+            logic_header = res.text.split('\n\n')[0] if '\n\n' in res.text else res.text[:200]
+            if "Logic:" in logic_header:
+                print(f"    [Scout Reasoning]: {logic_header.split('Logic:')[1].split('\n')[0].strip()}")
+        return res
 
     def _format_pass(research_text):
         return client.models.generate_content(
